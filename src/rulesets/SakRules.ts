@@ -2,73 +2,39 @@
 //
 // SPDX-License-Identifier: EUPL-1.2
 
-import { enumeration, truthy, falsy, undefined as undefinedFunc, pattern, schema } from '@stoplight/spectral-functions';
+import { pattern } from '@stoplight/spectral-functions';
 import { DiagnosticSeverity } from '@stoplight/types';
-import { BaseRuleset } from './BaseRuleset.js';
-import { CustomProperties } from '../ruleinterface/CustomProperties.js';
-import { SakBaseApiKeyRule } from './rulesetUtil.js';
-import { RuleExecutionContext } from '../util/RuleExecutionContext.js';
-//import Format from "@stoplight/spectral-formats";
+import { defineRule } from './defineRule.js';
 
-const moduleName: string = 'SakRules.js';
+const AREA = 'Säkerhet';
 
-export class Sak01 extends BaseRuleset {
-  static customProperties: CustomProperties = {
-    område: 'Säkerhet',
-    id: 'SAK.01',
-  };
-  message = 'All transport SKALL ske över HTTPS med minst TLS 1.2.';
-  given = '$.servers[*].url';
-  then = [
-    {
-      function: (targetVal: any, _opts: string, paths: string[]) => {
-        const urlPattern = new RegExp('^https://.+$');
+const SAK01_MESSAGE = 'All transport SKALL ske över HTTPS med minst TLS 1.2.';
+const HTTPS_URL_PATTERN = /^https:\/\/.+$/;
 
-        const valid = urlPattern.test(targetVal);
+export const Sak01 = defineRule({
+  id: 'SAK.01',
+  area: AREA,
+  message: SAK01_MESSAGE,
+  severity: DiagnosticSeverity.Error,
+  given: '$.servers[*].url',
+  validate: (targetVal: any) => {
+    if (HTTPS_URL_PATTERN.test(String(targetVal ?? ''))) {
+      return [];
+    }
+    return [{ message: SAK01_MESSAGE, severity: DiagnosticSeverity.Error }];
+  },
+});
 
-        if (valid) {
-          return [];
-        }
-
-        return [
-          {
-            message: this.message,
-            severity: this.severity,
-            paths: paths,
-          },
-        ];
-      },
-    },
-    {
-      function: (targetVal: string, _opts: string, paths: string[]) => {
-        this.trackRuleExecutionHandler(
-          JSON.stringify(targetVal, null, 2),
-          _opts,
-          paths,
-          this.severity,
-          this.constructor.name,
-          moduleName,
-          Sak01.customProperties,
-        );
-      },
-    },
-  ];
-  constructor(context: RuleExecutionContext) {
-    super(context);
-    super.initializeFormats(['OAS3']);
-  }
-  severity = DiagnosticSeverity.Error;
-}
-export class Sak09 extends BaseRuleset {
-  static customProperties: CustomProperties = {
-    område: 'Säkerhet',
-    id: 'SAK.09',
-  };
-  description =
-    'HTTP Basic är ett naturligt osäkert sätt att skicka inloggningsuppgifter till API:et. De placeras i URL:en i base64 som enkelt kan dekrypteras. Även om du använder en token finns det mycket bättre sätt att hantera att skicka tokens till ett API som är mindre benägna att läcka ut information';
-  message = 'Basic- eller Digest-autentisering SKALL INTE användas.';
-  given = '$.components.securitySchemes[*]';
-  then = [
+export const Sak09 = defineRule({
+  id: 'SAK.09',
+  area: AREA,
+  description:
+    'HTTP Basic är ett naturligt osäkert sätt att skicka inloggningsuppgifter till API:et. De placeras i URL:en i base64 som enkelt kan dekrypteras. Även om du använder en token finns det mycket bättre sätt att hantera att skicka tokens till ett API som är mindre benägna att läcka ut information',
+  message: 'Basic- eller Digest-autentisering SKALL INTE användas.',
+  severity: DiagnosticSeverity.Error,
+  given: '$.components.securitySchemes[*]',
+  trackWhen: (targetVal: any) => Boolean(targetVal?.scheme),
+  then: [
     {
       field: 'scheme',
       function: pattern,
@@ -83,39 +49,18 @@ export class Sak09 extends BaseRuleset {
         notMatch: 'digest',
       },
     },
-    {
-      field: 'scheme',
-      function: (targetVal: string, _opts: string, paths: string[]) => {
-        if (targetVal) {
-          this.trackRuleExecutionHandler(
-            JSON.stringify(targetVal, null, 2),
-            _opts,
-            paths,
-            this.severity,
-            this.constructor.name,
-            moduleName,
-            Sak09.customProperties,
-          );
-        }
-      },
-    },
-  ];
-  constructor(context: RuleExecutionContext) {
-    super(context);
-    super.initializeFormats(['OAS3']);
-  }
-  severity = DiagnosticSeverity.Error;
-}
-export class Sak10 extends BaseRuleset {
-  static customProperties: CustomProperties = {
-    område: 'Säkerhet',
-    id: 'SAK.10',
-  };
-  description =
-    'Genom att använda HTTPS för att kryptera kommunikationen mellan klient och server kan Bearer Authentication erbjuda en hög nivå av säkerhet. Det gör det svårare för angripare att avlyssna eller ändra åtkomsttoken under överföringen';
-  message = 'Authorization: Bearer header SKALL användas för autentisering/auktorisation.';
-  given = '$..components.securitySchemes[?(@ && @.scheme)]';
-  then = [
+  ],
+});
+
+export const Sak10 = defineRule({
+  id: 'SAK.10',
+  area: AREA,
+  description:
+    'Genom att använda HTTPS för att kryptera kommunikationen mellan klient och server kan Bearer Authentication erbjuda en hög nivå av säkerhet. Det gör det svårare för angripare att avlyssna eller ändra åtkomsttoken under överföringen',
+  message: 'Authorization: Bearer header SKALL användas för autentisering/auktorisation.',
+  severity: DiagnosticSeverity.Error,
+  given: '$..components.securitySchemes[?(@ && @.scheme)]',
+  then: [
     {
       field: 'scheme',
       function: pattern,
@@ -123,241 +68,105 @@ export class Sak10 extends BaseRuleset {
         match: 'bearer',
       },
     },
-    {
-      function: (targetVal: string, _opts: string, paths: string[]) => {
-        this.trackRuleExecutionHandler(
-          JSON.stringify(targetVal, null, 2),
-          _opts,
-          paths,
-          this.severity,
-          this.constructor.name,
-          moduleName,
-          Sak10.customProperties,
-        );
-      },
-    },
-  ];
-  constructor(context: RuleExecutionContext) {
-    super(context);
-    super.initializeFormats(['OAS3']);
-  }
-  severity = DiagnosticSeverity.Error;
-}
+  ],
+});
 
-export class Sak11 extends BaseRuleset {
-  static customProperties: CustomProperties = {
-    område: 'Säkerhet',
-    id: 'SAK.11',
-  };
+const SAK11_MESSAGE =
+  'En uppdateringstoken SKALL tillhandahållas för att förlänga giltighetstiden för befintliga token utan att behöva tillhandahålla referenserna igen.';
 
-  description = 'OAuth 2.0 authorizationCode- och password-flow SKALL ha attributet refreshUrl definierat.';
-
-  message =
-    'En uppdateringstoken SKALL tillhandahållas för att förlänga giltighetstiden för befintliga token utan att behöva tillhandahålla referenserna igen.';
-
-  given = ['$.components.securitySchemes[?(@.type=="oauth2")]'];
-
-  then = [
-    {
-      function: (targetVal: any, _opts: string, context: any) => {
-        const result: any[] = [];
-        const flows = targetVal.flows;
-
-        if (!flows) {
-          result.push({
-            message:
-              'En uppdateringstoken SKALL tillhandahållas för att förlänga giltighetstiden för befintliga token utan att behöva tillhandahålla referenserna igen.',
-            severity: this.severity,
-            path: [...context.path, 'flows'],
-          });
-          return result;
-        }
-
-        if (!flows.authorizationCode?.refreshUrl && !flows.password?.refreshUrl) {
-          result.push({
-            message:
-              'En uppdateringstoken SKALL tillhandahållas för att förlänga giltighetstiden för befintliga token utan att behöva tillhandahålla referenserna igen.',
-            severity: this.severity,
-            path: [...context.path, 'flows'],
-          });
-          return result;
-        }
-
-        return result;
-      },
-    },
-    {
-      function: (targetVal: any, _opts: string, paths: string[]) => {
-        this.trackRuleExecutionHandler(
-          JSON.stringify(targetVal, null, 2),
-          _opts,
-          paths,
-          this.severity,
-          this.constructor.name,
-          moduleName,
-          Sak11.customProperties,
-        );
-      },
-    },
-  ];
-
-  constructor(context: RuleExecutionContext) {
-    super(context);
-    super.initializeFormats(['OAS3']);
-  }
-
-  severity = DiagnosticSeverity.Error;
-}
-
-export class Sak15 extends SakBaseApiKeyRule {
-  static customProperties: CustomProperties = {
-    område: 'Säkerhet',
-    id: 'SAK.15',
-  };
-  constructor(context: RuleExecutionContext) {
-    super(context);
-    super.initializeFormats(['OAS3']);
-  }
-  description = '-';
-  message = 'API-nycklar SKALL INTE inkluderas i URL eller querysträngen';
-
-  protected validate(targetVal: any): any[] {
-    const result: any[] = [];
-    if (targetVal.in && targetVal.in.toLowerCase() === 'query') {
-      result.push({
-        message: this.message,
-        severity: this.severity,
-      });
+export const Sak11 = defineRule({
+  id: 'SAK.11',
+  area: AREA,
+  description: 'OAuth 2.0 authorizationCode- och password-flow SKALL ha attributet refreshUrl definierat.',
+  message: SAK11_MESSAGE,
+  severity: DiagnosticSeverity.Error,
+  given: ['$.components.securitySchemes[?(@.type=="oauth2")]'],
+  validate: (targetVal: any, _opts: any, context: any) => {
+    const flows = targetVal?.flows;
+    if (!flows || (!flows.authorizationCode?.refreshUrl && !flows.password?.refreshUrl)) {
+      return [
+        {
+          message: SAK11_MESSAGE,
+          severity: DiagnosticSeverity.Error,
+          path: [...context.path, 'flows'],
+        },
+      ];
     }
-    return result;
-  }
-  protected getCustomProperties(): CustomProperties {
-    return Sak15.customProperties;
-  }
-  protected getModuleName(): string {
-    return moduleName;
-  }
-}
+    return [];
+  },
+});
 
-export class Sak16 extends SakBaseApiKeyRule {
-  static customProperties: CustomProperties = {
-    område: 'Säkerhet',
-    id: 'SAK.16',
-  };
-  constructor(context: RuleExecutionContext) {
-    super(context);
-    super.initializeFormats(['OAS3']);
-  }
-  description = 'API-nycklar SKALL inkluderas i HTTP-headern eftersom querysträngar kan sparas i okrypterat format.';
-  message =
-    'API-nycklar SKALL inkluderas i HTTP-headern eftersom querysträngar kan sparas av klienten eller servern i okrypterat format av webbläsaren eller serverapplikationen.';
-  severity = DiagnosticSeverity.Error;
+const API_KEY_GIVEN = "$.components.securitySchemes[?(@ && @.type=='apiKey')]";
+const SAK15_MESSAGE = 'API-nycklar SKALL INTE inkluderas i URL eller querysträngen';
 
-  protected getCustomProperties(): CustomProperties {
-    return Sak16.customProperties;
-  }
-  protected getModuleName(): string {
-    return moduleName;
-  }
-  protected validate(targetVal: any): any[] {
-    const result: any[] = [];
-    if (targetVal.in?.toLowerCase() !== 'header') {
-      result.push({
-        message: this.message,
-        severity: this.severity,
-      });
+export const Sak15 = defineRule({
+  id: 'SAK.15',
+  area: AREA,
+  description: '-',
+  message: SAK15_MESSAGE,
+  severity: DiagnosticSeverity.Error,
+  given: API_KEY_GIVEN,
+  validate: (targetVal: any) => {
+    if (targetVal?.in && String(targetVal.in).toLowerCase() === 'query') {
+      return [{ message: SAK15_MESSAGE, severity: DiagnosticSeverity.Error }];
     }
-    return result;
-  }
-}
-export class Sak18 extends BaseRuleset {
-  static customProperties: CustomProperties = {
-    område: 'Säkerhet',
-    id: 'SAK.18',
-  };
-  description = 'OAuth är ett auktorisationsprotokoll som säkert delegerar behörighet till en annan resurs.';
-  message = 'OAuth version 2.0 eller senare BÖR användas för auktorisation.';
-  given =
-    "$..[securitySchemes][?(@ && @.type=='oauth2' && @.flows ? true : false)][*].[?(@property && @property.match(/Url$/i))]";
-  then = [
+    return [];
+  },
+});
+
+const SAK16_MESSAGE =
+  'API-nycklar SKALL inkluderas i HTTP-headern eftersom querysträngar kan sparas av klienten eller servern i okrypterat format av webbläsaren eller serverapplikationen.';
+
+export const Sak16 = defineRule({
+  id: 'SAK.16',
+  area: AREA,
+  description: 'API-nycklar SKALL inkluderas i HTTP-headern eftersom querysträngar kan sparas i okrypterat format.',
+  message: SAK16_MESSAGE,
+  severity: DiagnosticSeverity.Error,
+  given: API_KEY_GIVEN,
+  validate: (targetVal: any) => {
+    if (String(targetVal?.in ?? '').toLowerCase() !== 'header') {
+      return [{ message: SAK16_MESSAGE, severity: DiagnosticSeverity.Error }];
+    }
+    return [];
+  },
+});
+
+export const Sak18 = defineRule({
+  id: 'SAK.18',
+  area: AREA,
+  description: 'OAuth är ett auktorisationsprotokoll som säkert delegerar behörighet till en annan resurs.',
+  message: 'OAuth version 2.0 eller senare BÖR användas för auktorisation.',
+  severity: DiagnosticSeverity.Warning,
+  given:
+    "$..[securitySchemes][?(@ && @.type=='oauth2' && @.flows ? true : false)][*].[?(@property && @property.match(/Url$/i))]",
+  then: [
     {
       function: pattern,
       functionOptions: {
         notMatch: '^http:',
       },
     },
-    {
-      function: (targetVal: string, _opts: string, paths: string[]) => {
-        this.trackRuleExecutionHandler(
-          JSON.stringify(targetVal, null, 2),
-          _opts,
-          paths,
-          this.severity,
-          this.constructor.name,
-          moduleName,
-          Sak18.customProperties,
-        );
-      },
-    },
-  ];
-  constructor(context: RuleExecutionContext) {
-    super(context);
-    super.initializeFormats(['OAS3']);
-  }
-  severity = DiagnosticSeverity.Warning;
-}
+  ],
+});
 
-export class Sak29 extends BaseRuleset {
-  static customProperties: CustomProperties = {
-    område: 'Säkerhet',
-    id: 'SAK.29',
-  };
-  description = '';
-  message =
-    'Man BÖR (SAK.29) respektera angiven Content-Type i header. Förfrågningar som innehåller oväntade eller saknade Content-Type headers bör avvisas med HTTP-status 415 Unsupported Media Type.';
-  given = '$.paths[*][post,put,patch,delete,options]';
-  then = [
-    {
-      function: (targetVal: any, _opts: string, paths: string[]) => {
-        if (!targetVal?.requestBody) {
-          return [];
-        }
+const SAK29_MESSAGE =
+  'Man BÖR (SAK.29) respektera angiven Content-Type i header. Förfrågningar som innehåller oväntade eller saknade Content-Type headers bör avvisas med HTTP-status 415 Unsupported Media Type.';
 
-        const response415 = targetVal.responses && (targetVal.responses['415'] || targetVal.responses[415]);
-
-        if (response415) {
-          return [];
-        }
-
-        return [
-          {
-            message: this.message,
-            severity: this.severity,
-            paths,
-          },
-        ];
-      },
-    },
-    {
-      function: (targetVal: any, _opts: string, paths: string[]) => {
-        this.trackRuleExecutionHandler(
-          JSON.stringify(targetVal, null, 2),
-          _opts,
-          paths,
-          this.severity,
-          this.constructor.name,
-          moduleName,
-          Sak29.customProperties,
-        );
-      },
-    },
-  ];
-
-  constructor(context: RuleExecutionContext) {
-    super(context);
-    super.initializeFormats(['OAS3']);
-  }
-
-  severity = DiagnosticSeverity.Warning;
-}
-export default { Sak09, Sak10, Sak11, Sak15, Sak16, Sak18, Sak29 };
+export const Sak29 = defineRule({
+  id: 'SAK.29',
+  area: AREA,
+  message: SAK29_MESSAGE,
+  severity: DiagnosticSeverity.Warning,
+  given: '$.paths[*][post,put,patch,delete,options]',
+  validate: (targetVal: any) => {
+    if (!targetVal?.requestBody) {
+      return [];
+    }
+    const response415 = targetVal.responses && (targetVal.responses['415'] || targetVal.responses[415]);
+    if (response415) {
+      return [];
+    }
+    return [{ message: SAK29_MESSAGE, severity: DiagnosticSeverity.Warning }];
+  },
+});

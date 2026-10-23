@@ -3,221 +3,112 @@
 // SPDX-License-Identifier: EUPL-1.2
 
 import { DiagnosticSeverity } from '@stoplight/types';
-import { CustomProperties } from '../ruleinterface/CustomProperties.js';
-import { BaseRuleset } from './BaseRuleset.js';
-import { RuleExecutionContext } from '../util/RuleExecutionContext.js';
+import { defineRule } from './defineRule.js';
 
-const moduleName = 'SpaRules.js';
-
+const AREA = 'Spårbarhet och korrelation';
 const HTTP_METHODS = ['get', 'put', 'post', 'delete', 'patch'];
-
 const TRACEPARENT_HEADER = 'traceparent';
-
 const ALTERNATIVE_TRACE_HEADERS = ['x-request-id'];
 
-export class Spa02 extends BaseRuleset {
-  static customProperties: CustomProperties = {
-    område: 'Spårbarhet och korrelation',
-    id: 'SPA.02',
-  };
+const SPA02_MESSAGE =
+  'API-producenter SKALL acceptera HTTP-headern traceparent i inkommande anrop och propagera spårningsinformationen vidare enligt W3C Trace Context vid vidare anrop till andra system.';
 
-  message =
-    'API-producenter SKALL acceptera HTTP-headern traceparent i inkommande anrop och propagera spårningsinformationen vidare enligt W3C Trace Context vid vidare anrop till andra system.';
-  given = '$.paths[*]';
-
-  then = [
-    {
-      function: (targetVal: any, _opts: string, context: { path: (string | number)[] }) => {
-        const results: { message: string; path: (string | number)[] }[] = [];
-
-        const pathParameters = Array.isArray(targetVal?.parameters) ? targetVal.parameters : [];
-
-        for (const method of HTTP_METHODS) {
-          const operation = targetVal?.[method];
-
-          if (!operation) {
-            continue;
-          }
-
-          const operationParameters = Array.isArray(operation.parameters) ? operation.parameters : [];
-
-          const hasTraceparent = this.hasTraceparentParameter([...pathParameters, ...operationParameters]);
-
-          if (!hasTraceparent) {
-            results.push({
-              message: this.message,
-              path: [...context.path, method],
-            });
-          }
-        }
-
-        return results;
-      },
-    },
-    {
-      function: (targetVal: string, _opts: string, paths: string[]) => {
-        this.trackRuleExecutionHandler(
-          JSON.stringify(targetVal, null, 2),
-          _opts,
-          paths,
-          this.severity,
-          this.constructor.name,
-          moduleName,
-          Spa02.customProperties,
-        );
-      },
-    },
-  ];
-
-  private hasTraceparentParameter(parameters: any[]): boolean {
-    return parameters.some((parameter) => {
-      return (
-        parameter?.in === 'header' &&
-        typeof parameter.name === 'string' &&
-        parameter.name.toLowerCase() === 'traceparent' &&
-        parameter.required !== true
-      );
-    });
-  }
-
-  constructor(context: RuleExecutionContext) {
-    super(context);
-    super.initializeFormats(['OAS3']);
-  }
-
-  severity = DiagnosticSeverity.Error;
+function hasTraceparentParameter(parameters: any[]): boolean {
+  return parameters.some(
+    (parameter) =>
+      parameter?.in === 'header' &&
+      typeof parameter.name === 'string' &&
+      parameter.name.toLowerCase() === TRACEPARENT_HEADER &&
+      parameter.required !== true,
+  );
 }
 
-export class Spa04 extends BaseRuleset {
-  static customProperties: CustomProperties = {
-    område: 'Spårbarhet och korrelation',
-    id: 'SPA.04',
-  };
+export const Spa02 = defineRule({
+  id: 'SPA.02',
+  area: AREA,
+  message: SPA02_MESSAGE,
+  severity: DiagnosticSeverity.Error,
+  given: '$.paths[*]',
+  validate: (targetVal: any, _opts: any, context: { path: (string | number)[] }) => {
+    const results: { message: string; path: (string | number)[] }[] = [];
+    const pathParameters = Array.isArray(targetVal?.parameters) ? targetVal.parameters : [];
 
-  description = '-';
-  message = 'API-producenten BÖR inkludera HTTP-headern traceparent i ett API-svar.';
-  given = '$.paths[*][get,put,post,delete,patch].responses[*]';
-
-  then = [
-    {
-      function: (targetVal: any, _opts: string, paths: string[]) => {
-        const header = targetVal?.headers?.traceparent;
-
-        const hasTraceparent = header && (header.schema !== undefined || header.$ref !== undefined);
-
-        if (hasTraceparent) {
-          return [];
-        }
-
-        return [
-          {
-            message: this.message,
-            severity: this.severity,
-            paths,
-          },
-        ];
-      },
-    },
-    {
-      function: (targetVal: string, _opts: string, paths: string[]) => {
-        this.trackRuleExecutionHandler(
-          JSON.stringify(targetVal, null, 2),
-          _opts,
-          paths,
-          this.severity,
-          this.constructor.name,
-          moduleName,
-          Spa04.customProperties,
-        );
-      },
-    },
-  ];
-
-  constructor(context: RuleExecutionContext) {
-    super(context);
-    super.initializeFormats(['OAS3']);
-  }
-
-  severity = DiagnosticSeverity.Warning;
-}
-
-export class Spa07 extends BaseRuleset {
-  static customProperties: CustomProperties = {
-    område: 'Spårbarhet och korrelation',
-    id: 'SPA.07',
-  };
-
-  message =
-    'Alternativa identifierare, såsom x-request-id, kan användas som komplement för interna behov, men SKALL INTE ersätta traceparent vid spårning av API-anrop mellan system och organisationer.';
-  given = '$.paths[*]';
-
-  then = [
-    {
-      function: (targetVal: any, _opts: string, context: { path: (string | number)[] }) => {
-        const results: { message: string; path: (string | number)[] }[] = [];
-
-        const pathParameters = Array.isArray(targetVal?.parameters) ? targetVal.parameters : [];
-
-        for (const method of HTTP_METHODS) {
-          const operation = targetVal?.[method];
-
-          if (!operation) {
-            continue;
-          }
-
-          const operationParameters = Array.isArray(operation.parameters) ? operation.parameters : [];
-          const headerNames = this.collectHeaderNames([...pathParameters, ...operationParameters]);
-
-          const usesAlternativeIdentifier = ALTERNATIVE_TRACE_HEADERS.some((header) => headerNames.has(header));
-
-          if (usesAlternativeIdentifier && !headerNames.has(TRACEPARENT_HEADER)) {
-            results.push({
-              message: this.message,
-              path: [...context.path, method],
-            });
-          }
-        }
-
-        return results;
-      },
-    },
-    {
-      function: (targetVal: string, _opts: string, paths: string[]) => {
-        this.trackRuleExecutionHandler(
-          JSON.stringify(targetVal, null, 2),
-          _opts,
-          paths,
-          this.severity,
-          this.constructor.name,
-          moduleName,
-          Spa07.customProperties,
-        );
-      },
-    },
-  ];
-
-  private collectHeaderNames(parameters: any[]): Set<string> {
-    const headerNames = new Set<string>();
-
-    for (const parameter of parameters) {
-      if (parameter?.in === 'header' && typeof parameter.name === 'string') {
-        headerNames.add(parameter.name.toLowerCase());
+    for (const method of HTTP_METHODS) {
+      const operation = targetVal?.[method];
+      if (!operation) {
+        continue;
+      }
+      const operationParameters = Array.isArray(operation.parameters) ? operation.parameters : [];
+      if (!hasTraceparentParameter([...pathParameters, ...operationParameters])) {
+        results.push({
+          message: SPA02_MESSAGE,
+          path: [...context.path, method],
+        });
       }
     }
 
-    return headerNames;
-  }
+    return results;
+  },
+});
 
-  constructor(context: RuleExecutionContext) {
-    super(context);
-    super.initializeFormats(['OAS3']);
-  }
+const SPA04_MESSAGE = 'API-producenten BÖR inkludera HTTP-headern traceparent i ett API-svar.';
 
-  severity = DiagnosticSeverity.Error;
+export const Spa04 = defineRule({
+  id: 'SPA.04',
+  area: AREA,
+  description: '-',
+  message: SPA04_MESSAGE,
+  severity: DiagnosticSeverity.Warning,
+  given: '$.paths[*][get,put,post,delete,patch].responses[*]',
+  validate: (targetVal: any) => {
+    const header = targetVal?.headers?.traceparent;
+    if (header && (header.schema !== undefined || header.$ref !== undefined)) {
+      return [];
+    }
+    return [{ message: SPA04_MESSAGE, severity: DiagnosticSeverity.Warning }];
+  },
+});
+
+const SPA07_MESSAGE =
+  'Alternativa identifierare, såsom x-request-id, kan användas som komplement för interna behov, men SKALL INTE ersätta traceparent vid spårning av API-anrop mellan system och organisationer.';
+
+function collectHeaderNames(parameters: any[]): Set<string> {
+  const headerNames = new Set<string>();
+  for (const parameter of parameters) {
+    if (parameter?.in === 'header' && typeof parameter.name === 'string') {
+      headerNames.add(parameter.name.toLowerCase());
+    }
+  }
+  return headerNames;
 }
 
-export default {
-  Spa02,
-  Spa04,
-  Spa07,
-};
+export const Spa07 = defineRule({
+  id: 'SPA.07',
+  area: AREA,
+  message: SPA07_MESSAGE,
+  severity: DiagnosticSeverity.Error,
+  given: '$.paths[*]',
+  validate: (targetVal: any, _opts: any, context: { path: (string | number)[] }) => {
+    const results: { message: string; path: (string | number)[] }[] = [];
+    const pathParameters = Array.isArray(targetVal?.parameters) ? targetVal.parameters : [];
+
+    for (const method of HTTP_METHODS) {
+      const operation = targetVal?.[method];
+      if (!operation) {
+        continue;
+      }
+      const operationParameters = Array.isArray(operation.parameters) ? operation.parameters : [];
+      const headerNames = collectHeaderNames([...pathParameters, ...operationParameters]);
+      const usesAlternativeIdentifier = ALTERNATIVE_TRACE_HEADERS.some((header) => headerNames.has(header));
+
+      if (usesAlternativeIdentifier && !headerNames.has(TRACEPARENT_HEADER)) {
+        results.push({
+          message: SPA07_MESSAGE,
+          path: [...context.path, method],
+        });
+      }
+    }
+
+    return results;
+  },
+});

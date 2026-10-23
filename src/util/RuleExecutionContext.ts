@@ -4,59 +4,70 @@
 
 import { CustomProperties } from '../ruleinterface/CustomProperties.js';
 
-interface RuleExecutionInfo {
+export interface RuleExecutionInfo {
   moduleName: string;
   className: string;
   customProperties: CustomProperties;
   severity: string;
   passed: boolean;
-  targetVal: string;
+  targetVal?: string;
 }
 
 export interface RuleExecutionLog {
   [key: string]: RuleExecutionInfo[];
 }
+
 /**
- * 
+ * Tracks which rules were applicable and executed during a validation run.
+ * Deduplicates entries per rule class to avoid redundant memory allocation and post-processing.
  */
 export class RuleExecutionContext {
   public ruleExecutionLogDictionary: RuleExecutionLog = {};
-  // Define an object to store rule execution status
   public ruleExecutionStatus: Record<string, boolean> = {};
 
-// Function to register module and class information
   registerRuleExecutionStatus(
     moduleName: string,
-    className: string,
+    _className: string,
     customProperties: CustomProperties,
     severity: string,
-  ) {
+  ): void {
     const key = `${moduleName}:${customProperties.id}:${customProperties.område}:${severity}`;
     this.ruleExecutionStatus[key] = true;
   }
 
-// Function to register module and class information
   logRuleExecution(
     moduleName: string,
     className: string,
     customProperties: CustomProperties,
     severity: string,
-    passed: boolean,
-    targetVal: string,
-  ) {
+    passed: boolean = true,
+    _targetVal?: string,
+  ): void {
     const key = `${moduleName}:${customProperties.id}:${customProperties.område}:${severity}`;
+    this.ruleExecutionStatus[key] = true;
 
-    if (!this.ruleExecutionLogDictionary[key]) {
-      this.ruleExecutionLogDictionary[key] = [];
+    const existing = this.ruleExecutionLogDictionary[key];
+    if (!existing) {
+      this.ruleExecutionLogDictionary[key] = [
+        {
+          moduleName,
+          className,
+          customProperties,
+          severity,
+          passed,
+        },
+      ];
+      return;
     }
 
-    this.ruleExecutionLogDictionary[key].push({
-      moduleName,
-      className,
-      customProperties,
-      severity,
-      passed,
-      targetVal,
-    });
+    if (!existing.some((entry) => entry.className === className)) {
+      existing.push({
+        moduleName,
+        className,
+        customProperties,
+        severity,
+        passed,
+      });
+    }
   }
 }

@@ -5,105 +5,93 @@
 import * as SpectralCore from '@stoplight/spectral-core';
 import { ISpectralDiagnostic } from '@stoplight/spectral-core';
 import spectralCore from '@stoplight/spectral-core';
-const { Spectral, Document } = spectralCore;
+const { Spectral } = spectralCore;
 import { RapLPCustomSpectralDiagnostic } from './RapLPCustomSpectralDiagnostic.js';
 import { buildRuleHelpUrl } from '../rulesets/util/rules-doc.config.js';
+import { CustomProperties } from '../ruleinterface/CustomProperties.js';
 
-class RapLPCustomSpectral {
+interface RuleMetadataSource {
+  customProperties?: CustomProperties;
+  getCustomProperties?: () => CustomProperties;
+}
+
+interface EnabledRules {
+  rules: Record<string, any>;
+}
+
+const SEVERITY_NAMES: Record<number, string> = {
+  0: 'ERROR',
+  1: 'WARNING',
+  2: 'INFORMATION',
+  3: 'HINT',
+};
+
+export class RapLPCustomSpectral {
   private spectral: SpectralCore.Spectral;
-  private rules: Record<string, any>;
   private enabledRules: EnabledRules = {
     rules: {},
   };
-  private instanceCategoryMap: Map<string, any>;
+  private instanceCategoryMap: Map<string, RuleMetadataSource> = new Map();
+
   constructor() {
     this.spectral = new Spectral();
-    this.rules = {};
-    this.instanceCategoryMap = new Map<string, any>();
   }
+
   setRuleset(enabledRules: Record<string, any>): void {
     this.enabledRules.rules = enabledRules;
     this.spectral.setRuleset(this.enabledRules);
   }
-  setCategorys(instanceCategoryMap: Map<string, any>): void {
+
+  setRawRuleset(ruleset: any): void {
+    this.spectral.setRuleset(ruleset);
+  }
+
+  setCategorys(instanceCategoryMap: Map<string, RuleMetadataSource>): void {
     this.instanceCategoryMap = instanceCategoryMap;
   }
+
   async run(document: any): Promise<RapLPCustomSpectralDiagnostic[]> {
     const spectralResults = await this.spectral.run(document);
     return this.modifyResults(spectralResults);
   }
+
   async runSemanticValidation(document: any): Promise<ISpectralDiagnostic[]> {
     return await this.spectral.run(document);
   }
 
-  private modifyRuleset(enabledRules: EnabledRules): Record<string, any> {
-    return enabledRules.rules;
-  }
   private modifyResults(results: ISpectralDiagnostic[]): RapLPCustomSpectralDiagnostic[] {
-    const customResults: RapLPCustomSpectralDiagnostic[] = []; // Initialize
-    for (const result of results) {
-      const ruleName = result.code as string;
-      for (const ruleObject of Object.values(this.enabledRules)) {
-        if (ruleObject && Object.keys(ruleObject).includes(ruleName)) {
-          const ruleInstance = ruleObject[ruleName];
-          const ruleClass = this.instanceCategoryMap.get(ruleName);
-          if (ruleClass && typeof ruleClass.getCustomProperties === 'function') {
-            // Check for existance
-            const customProperties = ruleClass.getCustomProperties;
-            const ruleId = ruleClass.customProperties.id;   
+    const customResults: RapLPCustomSpectralDiagnostic[] = [];
+    const activeRules = this.enabledRules.rules;
 
-            const customResult: RapLPCustomSpectralDiagnostic = {
-              id: ruleId,
-              area: ruleClass.customProperties.område,
-              helpUrl: ruleId ? buildRuleHelpUrl(ruleId) : undefined,
-              ...customProperties, // For more copy
-              ...this.mapResultToCustom(result),
-            };
-            customResults.push(customResult);
-            break; // Break the loop once a match is found
-          }
-        }
+    for (const result of results) {
+      const ruleName = String(result.code);
+      const ruleMetadata = this.instanceCategoryMap.get(ruleName) ?? activeRules[ruleName];
+      const customProps =
+        ruleMetadata?.customProperties ??
+        (typeof ruleMetadata?.getCustomProperties === 'function' ? ruleMetadata.getCustomProperties() : undefined);
+
+      if (customProps) {
+        const ruleId = customProps.id;
+        customResults.push({
+          id: ruleId,
+          area: customProps.område,
+          helpUrl: ruleId ? buildRuleHelpUrl(ruleId) : undefined,
+          ...this.mapResultToCustom(result),
+        });
       }
     }
+
     return customResults;
   }
-  private mapResultToCustom(result: ISpectralDiagnostic): RapLPCustomSpectralDiagnostic {
-    // Map properties from result ISpectralDiagnostic to CustomSpectralDiagnostic
-    const { message, code, severity: spectralSeverity, path, source, range, ...rest } = result;
 
-    // Map severity to corresponding string value for allvarlighetsgrad
-    let severity: string;
-    switch (spectralSeverity) {
-      case 0:
-        severity = 'ERROR';
-        break;
-      case 1:
-        severity = 'WARNING';
-        break;
-      case 2:
-        severity = 'INFORMATION';
-        break;
-      case 3:
-        severity = 'HINT';
-        break;
-      default:
-        severity = ''; // Handle other cases if needed
-    }
+  private mapResultToCustom(result: ISpectralDiagnostic): RapLPCustomSpectralDiagnostic {
+    const { message, code: _code, severity: spectralSeverity, path, source: _source, range, ...rest } = result;
     return {
       ...rest,
-
       requirement: message,
-      severity,
-      path: path,
-      range: range,
+      severity: SEVERITY_NAMES[spectralSeverity] ?? '',
+      path,
+      range,
     };
   }
-}
-export { RapLPCustomSpectral };
-/**
- * Own defined interface to extend ISpectralDiagnostic.
- * The interface also extends the omit type in order to 'remove' some fields from the iSpectralDiagnostic
- */
-interface EnabledRules {
-  rules: Record<string, any>;
 }

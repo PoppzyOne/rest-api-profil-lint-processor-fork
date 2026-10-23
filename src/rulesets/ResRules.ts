@@ -3,116 +3,52 @@
 // SPDX-License-Identifier: EUPL-1.2
 
 import { DiagnosticSeverity } from '@stoplight/types';
-import { CustomProperties } from '../ruleinterface/CustomProperties.js';
-import { BaseRuleset } from './BaseRuleset.js';
 import { personalIdentityNumberFieldNames } from './constants/ResConstants.js';
-import { RuleExecutionContext } from '../util/RuleExecutionContext.js';
+import { defineRule } from './defineRule.js';
 
-const moduleName: string = 'ResRules.js';
+const AREA = 'Resurser';
 
-export class Res02 extends BaseRuleset {
-  static customProperties: CustomProperties = {
-    område: 'Resurser',
-    id: 'RES.02',
-  };
-  message = 'Primärnycklar eller personligt identifierbar information (personnummer, etc.) BÖR INTE exponeras. ';
-  given = '$.paths[*].*.parameters[*]';
-  then = [
-    {
-      function: (targetVal: any, _opts: string, paths: string[]) => {
-        if (targetVal.in == 'query' || targetVal.in == 'path') {
-          const lowerCaseTargetVal = targetVal.name.toLowerCase();
-          const containsPersonalIdentityNumber = personalIdentityNumberFieldNames.includes(lowerCaseTargetVal);
-          if (containsPersonalIdentityNumber) {
-            return [
-              {
-                message: this.message,
-                severity: this.severity,
-                paths: paths,
-              },
-            ];
-          }
+const RES02_MESSAGE =
+  'Primärnycklar eller personligt identifierbar information (personnummer, etc.) BÖR INTE exponeras. ';
+const RES06_MESSAGE =
+  'Resurser SKALL följa den namnsättningskonvention som beskrivs för URL:er, det vill säga att resurser anges med gemener, använder endast alfanumeriska tecken och bindestreck för att separera eventuella ord. ';
+
+const SEGMENT_REGEX = /^(?!-)[a-z0-9-]+(?<!-)$/;
+const INVALID_PREFIXES = ['get-', 'post-', 'put-', 'delete-', 'patch-'];
+
+export const Res02 = defineRule({
+  id: 'RES.02',
+  area: AREA,
+  message: RES02_MESSAGE,
+  severity: DiagnosticSeverity.Warning,
+  given: '$.paths[*].*.parameters[*]',
+  validate: (targetVal: any) => {
+    if (targetVal?.in === 'query' || targetVal?.in === 'path') {
+      const lowerName = String(targetVal.name ?? '').toLowerCase();
+      if (personalIdentityNumberFieldNames.includes(lowerName)) {
+        return [{ message: RES02_MESSAGE, severity: DiagnosticSeverity.Warning }];
+      }
+    }
+    return [];
+  },
+});
+
+export const Res06 = defineRule({
+  id: 'RES.06',
+  area: AREA,
+  message: RES06_MESSAGE,
+  severity: DiagnosticSeverity.Error,
+  given: '$.paths[*]~',
+  validate: (targetVal: any) => {
+    const segments = String(targetVal ?? '').split('/');
+    for (const part of segments) {
+      if (part.length > 0 && !part.includes('{') && !part.includes('}')) {
+        const hasInvalidPrefix = INVALID_PREFIXES.some((prefix) => part.startsWith(prefix));
+        if (!SEGMENT_REGEX.test(part) || hasInvalidPrefix) {
+          return [{ message: RES06_MESSAGE, severity: DiagnosticSeverity.Error }];
         }
-        return [];
-      },
-    },
-    {
-      function: (targetVal: string, _opts: string, paths: string[]) => {
-        this.trackRuleExecutionHandler(
-          JSON.stringify(targetVal, null, 2),
-          _opts,
-          paths,
-          this.severity,
-          this.constructor.name,
-          moduleName,
-          Res02.customProperties,
-        );
-      },
-    },
-  ];
-  severity = DiagnosticSeverity.Warning;
-  constructor(context: RuleExecutionContext) {
-    super(context);
-    super.initializeFormats(['OAS3']);
-  }
-}
-
-export class Res06 extends BaseRuleset {
-  static customProperties: CustomProperties = {
-    område: 'Resurser',
-    id: 'RES.06',
-  };
-  message =
-    'Resurser SKALL följa den namnsättningskonvention som beskrivs för URL:er, det vill säga att resurser anges med gemener, använder endast alfanumeriska tecken och bindestreck för att separera eventuella ord. ';
-  given = '$.paths[*]~';
-  then = [
-    {
-      function: (targetVal: any, _opts: string, paths: string[]) => {
-        const expression = new RegExp('^(?!-)[a-z0-9-]+(?<!-)$');
-        const invalidPrefixes = ['get-', 'post-', 'put-', 'delete-', 'patch-'];
-
-        let invalid = false;
-
-        targetVal.split('/').forEach((part: string) => {
-          if (part.length > 0 && !part.includes('{') && !part.includes('}')) {
-            const hasInvalidPrefix = invalidPrefixes.some((prefix) => part.startsWith(prefix));
-            if (!expression.test(part) || hasInvalidPrefix) {
-              invalid = true;
-            }
-          }
-        });
-
-        if (invalid) {
-          return [
-            {
-              message: this.message,
-              severity: this.severity,
-              paths: paths,
-            },
-          ];
-        }
-        return [];
-      },
-    },
-    {
-      function: (targetVal: string, _opts: string, paths: string[]) => {
-        this.trackRuleExecutionHandler(
-          JSON.stringify(targetVal, null, 2),
-          _opts,
-          paths,
-          this.severity,
-          this.constructor.name,
-          moduleName,
-          Res06.customProperties,
-        );
-      },
-    },
-  ];
-  severity = DiagnosticSeverity.Error;
-  constructor(context: RuleExecutionContext) {
-    super(context);
-    super.initializeFormats(['OAS3']);
-  }
-}
-
-export default { Res02, Res06 };
+      }
+    }
+    return [];
+  },
+});
