@@ -2,148 +2,93 @@
 //
 // SPDX-License-Identifier: EUPL-1.2
 
-import { BaseRuleset } from '../BaseRuleset.js';
-import { Property } from '../rulesetUtil.js';
-import { CustomProperties } from '../../ruleinterface/CustomProperties.js';
-import { RuleExecutionContext } from '../../util/RuleExecutionContext.js';
+import { DiagnosticSeverity } from '@stoplight/types';
+import { parseProperties } from '../rulesetUtil.js';
 
-/**
- * interface describing propertyes collected and validated
- */
-export interface DotState {
-  schemaKey: string;
-  propertyName: string;
-  propertyType: string;
-  propertyFormat: string;
-  propertyExample: string;
-  propertyValidFormatDate: boolean;
-  propertyValidFormatDateTime: boolean;
-}
-/**
- * Make above interface available in dictionary
- */
-export interface DotStateExecutionLog {
-  [key: string]: DotState[];
-}
-/**
- * Class that abstracts common logic needed in category of Datetime[DOT rules]
- */
-export class DotRuleBase extends BaseRuleset {
-  protected constructor(context: RuleExecutionContext) {
-    super(context);
-    super.initializeFormats(['OAS3']);
-    this.given = '$.components.schemas';
+const RFC3339_DATE_REGEX = /^([0-9]{4})-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])$/;
+const RFC3339_DATE_TIME_REGEX =
+  /^(\d{4})-(0[1-9]|1[0-2])-([0-2][0-9]|3[0-1])T([0-1][0-9]|2[0-3]):([0-5][0-9]):([0-5][0-9])(\.\d{1,6})?(Z|([+-])([0-1][0-9]|2[0-3]):([0-5][0-9]))?$/;
+const OFFSET_REGEX = /^([+-])(0[0-9]|1[0-4]):([0-5][0-9])$/;
+
+export function isValidRfc3339Offset(example: string): boolean {
+  if (example.includes('Z')) {
+    return true;
   }
-
-  /**
-   * Function for check valid offset(s) according to RFC3339 [ Overrided function ]
-   * @param example
-   * @returns
-   */
-  isValidWithOffset(example: string): boolean {
+  const plusIndex = example.lastIndexOf('+');
+  const minusIndex = example.lastIndexOf('-');
+  const offsetIndex = plusIndex !== -1 ? plusIndex : minusIndex;
+  if (offsetIndex === -1) {
     return false;
   }
-  /**
-   * Correct date pattern according to RFC3339
-   * @returns Read only copy of text of RegExp
-   */
-  generateDatePattern(): string {
-    return /^([0-9]{4})-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])$/.source;
-  }
-  /**
-   * Correct date-time pattern according to RFC3339
-   * @returns
-   */
-  generateDateTimePattern(): string {
-    return /^(\d{4})-(0[1-9]|1[0-2])-([0-2][0-9]|3[0-1])T([0-1][0-9]|2[0-3]):([0-5][0-9]):([0-5][0-9])(\.\d{1,6})?(Z|([+-])([0-1][0-9]|2[0-3]):([0-5][0-9]))?$/
-      .source;
-  }
-  /**
-   * Execute the logic that is common
-   * @param prop current propertyy
-   * @param stateKey unique key to push in dictionary
-   * @param dotStateExecutionLogDictionary Dictionary
-   * @param isTrackRuleExecution ByRef
-   * @param subclassProperties
-   */
-  protected executeRuleLogic(
-    prop: Property,
-    stateKey: string,
-    dotStateExecutionLogDictionary: DotStateExecutionLog,
-    isTrackRuleExecution: { value: boolean },
-    subclassProperties: CustomProperties,
-  ): void {
-    if (prop.format === 'date' || prop.format === 'date-time') {
-      let isValid = false;
-      isTrackRuleExecution.value = true; // Should track
 
-      if (prop.format === 'date' && prop.example !== undefined) {
-        const pattern = new RegExp(this.generateDatePattern());
-        isValid = prop.example && pattern.test(prop.example);
-      } else if (prop.format === 'date-time' && prop.example !== undefined) {
-        const pattern = new RegExp(this.generateDateTimePattern());
-        isValid = this.isValidWithOffset(prop.example) && pattern.test(prop.example); // Check for Zulu or offset presence
-      }
-      if (!isValid) {
-        //Push info on dictionary
-        const isDate = prop.format === 'date';
-        dotStateExecutionLogDictionary[stateKey].push({
-          schemaKey: stateKey.split(':')[0],
-          propertyName: prop.name,
-          propertyType: prop.type,
-          propertyFormat: prop.format,
-          propertyExample: prop.example,
-          propertyValidFormatDate: isDate ? false : true,
-          propertyValidFormatDateTime: !isDate ? false : true,
-        });
-      }
-    }
+  const offsetPart = example.substring(offsetIndex);
+  const match = offsetPart.match(OFFSET_REGEX);
+  if (!match) {
+    return false;
   }
-  /**
-   * Handle the result
-   * @param dotStateExecutionLogDictionary //Dictionary containing info to handle
-   * @param paths
-   * @param moduleName
-   * @param isTrackRuleExecution // ByRef
-   * @param subclassProperties  //
-   * @returns result containing the info sent back to user
-   */
-  protected handleResult(
-    dotStateExecutionLogDictionary: DotStateExecutionLog,
-    paths: any,
-    moduleName: string,
-    isTrackRuleExecution: { value: boolean },
-    subclassProperties: CustomProperties,
-  ): any[] {
-    const result: any[] = [];
-    for (const stateKey in dotStateExecutionLogDictionary) {
-      const properties = dotStateExecutionLogDictionary[stateKey];
-      const hasInvalidFormat = properties.some(
-        (property) => !(property.propertyValidFormatDate && property.propertyValidFormatDateTime),
-      );
 
-      if (hasInvalidFormat) {
-        properties.forEach((property) => {
-          result.push({
-            path: [...paths.path, property.schemaKey, 'properties', property.propertyName, 'example'], // Correct path in yaml
-            message: this.message,
-            severity: this.severity,
-          });
-        });
-      }
-    }
-    if (isTrackRuleExecution.value === true) {
-      super.trackRuleExecutionHandler(
-        JSON.stringify(dotStateExecutionLogDictionary, null, 2),
-        '',
-        paths,
-        this.severity,
-        this.constructor.name,
-        moduleName,
-        subclassProperties,
-      );
-    }
-    return result;
+  const sign = match[1];
+  const hours = parseInt(match[2], 10);
+  const minutes = parseInt(match[3], 10);
+
+  if ((sign === '+' && hours > 14) || (sign === '-' && hours > 12)) {
+    return false;
   }
+  return minutes >= 0 && minutes <= 59;
 }
-export default { DotRuleBase };
+
+export function hasDateOrDateTimeProperty(schemas: any): boolean {
+  if (!schemas || typeof schemas !== 'object') {
+    return false;
+  }
+  for (const schemaKey of Object.keys(schemas)) {
+    const properties = parseProperties(schemaKey, schemas);
+    if (properties.some((prop) => prop.format === 'date' || prop.format === 'date-time')) {
+      return true;
+    }
+  }
+  return false;
+}
+
+export function validateSchemaDateExamples(
+  schemas: any,
+  paths: any,
+  message: string,
+  severity: DiagnosticSeverity,
+  requireOffset: boolean,
+): any[] {
+  if (!schemas || typeof schemas !== 'object') {
+    return [];
+  }
+
+  const results: any[] = [];
+  const basePath = Array.isArray(paths?.path) ? paths.path : ['components', 'schemas'];
+
+  for (const schemaKey of Object.keys(schemas)) {
+    const properties = parseProperties(schemaKey, schemas);
+    for (const prop of properties) {
+      if (prop.format !== 'date' && prop.format !== 'date-time') {
+        continue;
+      }
+
+      let isValid = false;
+      if (prop.format === 'date' && prop.example !== undefined) {
+        isValid = Boolean(prop.example && RFC3339_DATE_REGEX.test(String(prop.example)));
+      } else if (prop.format === 'date-time' && prop.example !== undefined) {
+        const exampleStr = String(prop.example);
+        const offsetOk = requireOffset ? isValidRfc3339Offset(exampleStr) : true;
+        isValid = offsetOk && RFC3339_DATE_TIME_REGEX.test(exampleStr);
+      }
+
+      if (!isValid) {
+        results.push({
+          path: [...basePath, schemaKey, 'properties', prop.name, 'example'],
+          message,
+          severity,
+        });
+      }
+    }
+  }
+
+  return results;
+}

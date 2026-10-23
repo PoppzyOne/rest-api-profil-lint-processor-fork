@@ -2,224 +2,124 @@
 //
 // SPDX-License-Identifier: EUPL-1.2
 
-import { Arq05Base } from './rulesetUtil.js';
-import { schema } from '@stoplight/spectral-functions';
 import { DiagnosticSeverity } from '@stoplight/types';
-import { CustomProperties } from '../ruleinterface/CustomProperties.js';
-import { BaseRuleset } from './BaseRuleset.js';
-import { isValidApplicationJson } from './rulesetUtil.js';
-import { RuleExecutionContext } from '../util/RuleExecutionContext.js';
+import { hasHeaderSchemaType, isValidApplicationJson } from './rulesetUtil.js';
+import { defineRule } from './defineRule.js';
 
-const moduleName: string = 'ArqRules.js';
+const AREA = 'API Request';
+const ARQ05_BASE_MESSAGE = 'Payload data SKALL INTE användas i HTTP-headers';
+const ARQ05_GIVEN = "$.paths.*.*.parameters[?(@.in=='header' && @.schema)]";
 
-export class Arq05NestedStructure extends Arq05Base {
-  description = 'Om en header använder nästlade strukturer, är en requestbody mer lämplig.';
-  message = '[' + super.messageValue + '] ' + this.description;
-  then = [
-    {
-      function: (targetVal, _opts, paths) => {
-        if (this.checkSchema(targetVal, 'object') && targetVal.schema.properties) {
-          return [
-            {
-              message: this.message,
-              severity: this.severity,
-            },
-          ];
-        }
-        return [];
-      },
-    },
-    {
-      function: (targetVal: string, _opts: string, paths: string[]) => {
-        return this.trackRuleExecutionHandler(
-          JSON.stringify(targetVal, null, 2),
-          _opts,
-          paths,
-          this.severity,
-          this.constructor.name,
-          moduleName,
-          Arq05NestedStructure.customProperties,
-        );
-      },
-    },
-  ];
-}
-export class Arq05StringBinary extends Arq05Base {
-  description =
-    'Om en header förväntas innehålla data med ovanliga MIME-typer kan det indikera en okonventionell användning av headers.';
-  message = '[' + super.messageValue + '] ' + this.description;
-  then = [
-    {
-      function: (targetVal, _opts, paths) => {
-        if (this.checkSchema(targetVal, 'string', 'binary')) {
-          return [
-            {
-              message: this.message,
-              severity: this.severity,
-            },
-          ];
-        }
+const ARQ05_NESTED_DESCRIPTION = 'Om en header använder nästlade strukturer, är en requestbody mer lämplig.';
+const ARQ05_NESTED_MESSAGE = '[' + ARQ05_BASE_MESSAGE + '] ' + ARQ05_NESTED_DESCRIPTION;
 
-        return [];
-      },
-    },
-    {
-      function: (targetVal: string, _opts: string, paths: string[]) => {
-        return this.trackRuleExecutionHandler(
-          JSON.stringify(targetVal, null, 2),
-          _opts,
-          paths,
-          this.severity,
-          this.constructor.name,
-          moduleName,
-          Arq05StringBinary.customProperties,
-        );
-      },
-    },
-  ];
-}
-export class Arq05ComplexStructure extends Arq05Base {
-  description =
-    'Om en header förväntas innehålla komplexa datastrukturer, såsom JSON eller XML, kan det indikera en okonventionell användning av headers.';
-  message = '[' + super.messageValue + '] ' + this.description;
-  then = [
-    {
-      function: (targetVal, _opts, paths) => {
-        if (this.checkSchema(targetVal, 'object')) {
-          return [
-            {
-              message: this.message,
-              severity: this.severity,
-            },
-          ];
-        }
-        return [];
-      },
-    },
-    {
-      function: (targetVal: string, _opts: string, paths: string[]) => {
-        return this.trackRuleExecutionHandler(
-          JSON.stringify(targetVal, null, 2),
-          _opts,
-          paths,
-          this.severity,
-          this.constructor.name,
-          moduleName,
-          Arq05ComplexStructure.customProperties,
-        );
-      },
-    },
-  ];
-}
-export class Arq01 extends BaseRuleset {
-  static customProperties: CustomProperties = {
-    område: 'API Request',
-    id: 'ARQ.01',
-  };
-  description = 'Ett request BÖR skickas i UTF-8';
-  message = 'Ett request BÖR skickas i UTF-8';
-  given = '$.paths[*][*].requestBody.content';
-  then = [
-    {
-      function: (targetVal: any, _opts: string, paths: string[]) => {
-        const valid: boolean = Object.keys(targetVal ?? {}).some((property) => isValidApplicationJson(property));
+export const Arq05NestedStructure = defineRule({
+  id: 'ARQ.05',
+  area: AREA,
+  description: ARQ05_NESTED_DESCRIPTION,
+  message: ARQ05_NESTED_MESSAGE,
+  severity: DiagnosticSeverity.Error,
+  given: ARQ05_GIVEN,
+  validate: (targetVal: any) => {
+    if (hasHeaderSchemaType(targetVal, 'object') && targetVal?.schema?.properties) {
+      return [{ message: ARQ05_NESTED_MESSAGE, severity: DiagnosticSeverity.Error }];
+    }
+    return [];
+  },
+});
 
-        if (!valid) {
-          return [
-            {
-              message: this.message,
-              severity: this.severity,
-            },
-          ];
-        } else {
-          return [];
+const ARQ05_BINARY_DESCRIPTION =
+  'Om en header förväntas innehålla data med ovanliga MIME-typer kan det indikera en okonventionell användning av headers.';
+const ARQ05_BINARY_MESSAGE = '[' + ARQ05_BASE_MESSAGE + '] ' + ARQ05_BINARY_DESCRIPTION;
+
+export const Arq05StringBinary = defineRule({
+  id: 'ARQ.05',
+  area: AREA,
+  description: ARQ05_BINARY_DESCRIPTION,
+  message: ARQ05_BINARY_MESSAGE,
+  severity: DiagnosticSeverity.Error,
+  given: ARQ05_GIVEN,
+  validate: (targetVal: any) => {
+    if (hasHeaderSchemaType(targetVal, 'string', 'binary')) {
+      return [{ message: ARQ05_BINARY_MESSAGE, severity: DiagnosticSeverity.Error }];
+    }
+    return [];
+  },
+});
+
+const ARQ05_COMPLEX_DESCRIPTION =
+  'Om en header förväntas innehålla komplexa datastrukturer, såsom JSON eller XML, kan det indikera en okonventionell användning av headers.';
+const ARQ05_COMPLEX_MESSAGE = '[' + ARQ05_BASE_MESSAGE + '] ' + ARQ05_COMPLEX_DESCRIPTION;
+
+export const Arq05ComplexStructure = defineRule({
+  id: 'ARQ.05',
+  area: AREA,
+  description: ARQ05_COMPLEX_DESCRIPTION,
+  message: ARQ05_COMPLEX_MESSAGE,
+  severity: DiagnosticSeverity.Error,
+  given: ARQ05_GIVEN,
+  validate: (targetVal: any) => {
+    if (hasHeaderSchemaType(targetVal, 'object')) {
+      return [{ message: ARQ05_COMPLEX_MESSAGE, severity: DiagnosticSeverity.Error }];
+    }
+    return [];
+  },
+});
+
+const ARQ01_MESSAGE = 'Ett request BÖR skickas i UTF-8';
+
+export const Arq01 = defineRule({
+  id: 'ARQ.01',
+  area: AREA,
+  description: ARQ01_MESSAGE,
+  message: ARQ01_MESSAGE,
+  severity: DiagnosticSeverity.Warning,
+  given: '$.paths[*][*].requestBody.content',
+  validate: (targetVal: any) => {
+    const valid = Object.keys(targetVal ?? {}).some((property) => isValidApplicationJson(property));
+    if (!valid) {
+      return [{ message: ARQ01_MESSAGE, severity: DiagnosticSeverity.Warning }];
+    }
+    return [];
+  },
+});
+
+const ARQ03_MESSAGE =
+  'Alla API:er BÖR supportera följande request headers: Accept, Date, Cache-Control, ETag, Connection och Cookie.';
+
+export const Arq03 = defineRule({
+  id: 'ARQ.03',
+  area: AREA,
+  description: ARQ03_MESSAGE,
+  message: ARQ03_MESSAGE,
+  severity: DiagnosticSeverity.Warning,
+  given: '$.paths.*.*',
+  validate: (targetVal: any) => {
+    let isValid = true;
+    if (Array.isArray(targetVal?.parameters)) {
+      for (const element of targetVal.parameters) {
+        if (element?.in === 'header') {
+          if (element.name === 'Date' && element.schema?.format !== 'date-time') {
+            isValid = false;
+          }
+          if (element.name === 'Cache-Control' && element.schema?.enum?.length === 0) {
+            isValid = false;
+          }
+          if (element.name === 'ETag' && element.schema?.format !== 'etag') {
+            isValid = false;
+          }
+          if (element.name === 'Connection' && !element.schema?.enum?.includes('keep-alive')) {
+            isValid = false;
+          }
         }
-      },
-    },
-    {
-      function: (targetVal: string, _opts: string, paths: string[]) => {
-        return this.trackRuleExecutionHandler(
-          JSON.stringify(targetVal, null, 2),
-          _opts,
-          paths,
-          this.severity,
-          this.constructor.name,
-          moduleName,
-          Arq01.customProperties,
-        );
-      },
-    },
-  ];
-  constructor(context: RuleExecutionContext) {
-    super(context);
-    super.initializeFormats(['OAS3']);
-  }
-  severity = DiagnosticSeverity.Warning;
-}
-export class Arq03 extends BaseRuleset {
-  static customProperties: CustomProperties = {
-    område: 'API Request',
-    id: 'ARQ.03',
-  };
-  description =
-    'Alla API:er BÖR supportera följande request headers: Accept, Date, Cache-Control, ETag, Connection och Cookie.';
-  message = this.description;
-  given = '$.paths.*.*';
-  then = [
-    {
-      function: (targetVal: object, _opts: string, paths: string[]) => {
-        let isValid = true;
-        if (targetVal['parameters'] !== undefined) {
-          targetVal['parameters'].forEach((element) => {
-            if (element['in'] == 'header') {
-              if (element['name'] == 'Date' && element['schema']['format'] !== 'date-time') {
-                isValid = false;
-              }
-              if (element['name'] == 'Cache-Control' && element['schema']['enum'].length == 0) {
-                isValid = false;
-              }
-              if (element['name'] == 'ETag' && element['schema']['format'] !== 'etag') {
-                isValid = false;
-              }
-              if (element['name'] == 'Connection' && !element['schema']['enum'].includes('keep-alive')) {
-                isValid = false;
-              }
-            }
-            if (element['in'] === 'cookie' && element['schema']['type'] == undefined) {
-              isValid = false;
-            }
-          });
+        if (element?.in === 'cookie' && element.schema?.type === undefined) {
+          isValid = false;
         }
-        if (!isValid) {
-          return [
-            {
-              message: this.message,
-              severity: this.severity,
-            },
-          ];
-        } else {
-          return [];
-        }
-      },
-    },
-    {
-      function: (targetVal: string, _opts: string, paths: string[]) => {
-        return this.trackRuleExecutionHandler(
-          JSON.stringify(targetVal, null, 2),
-          _opts,
-          paths,
-          this.severity,
-          this.constructor.name,
-          moduleName,
-          Arq03.customProperties,
-        );
-      },
-    },
-  ];
-  constructor(context: RuleExecutionContext) {
-    super(context);
-    super.initializeFormats(['OAS3']);
-  }
-  severity = DiagnosticSeverity.Warning;
-}
-export default { Arq05ComplexStructure, Arq05StringBinary, Arq05NestedStructure, Arq03, Arq01 };
+      }
+    }
+    if (!isValid) {
+      return [{ message: ARQ03_MESSAGE, severity: DiagnosticSeverity.Warning }];
+    }
+    return [];
+  },
+});

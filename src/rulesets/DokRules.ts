@@ -2,12 +2,9 @@
 //
 // SPDX-License-Identifier: EUPL-1.2
 
-import { CustomProperties } from '../ruleinterface/CustomProperties.js';
-import { BaseRuleset } from './BaseRuleset.js';
 import { truthy, falsy, pattern } from '@stoplight/spectral-functions';
 import { DiagnosticSeverity } from '@stoplight/types';
-import { Dok03Base } from './rulesetUtil.js';
-import { Dok15Base } from './rulesetUtil.js';
+import { hasExampleInMediaType } from './rulesetUtil.js';
 import { commonEnglishWords, commonSwedishWords } from './constants/CommonWords.js';
 import {
   OpenAPIObject,
@@ -16,68 +13,56 @@ import {
   PathsObject,
   SecurityRequirementObject,
 } from '../types/openapi-3.0.js';
-import { RuleExecutionContext } from '../util/RuleExecutionContext.js';
+import { defineRule } from './defineRule.js';
 
-const moduleName: string = 'DokRules.js';
+const AREA = 'Dokumentation';
 
-export class Dok15Get extends Dok15Base {
-  given = '$.paths[*][*].responses[*].content.application/json';
-  then = [
-    {
-      function: (targetVal: any, _opts: string, paths: string[]) => {
-        return super.test(targetVal, _opts, paths);
-      },
-    },
-    {
-      function: (targetVal: string, _opts: string, paths: string[]) => {
-        this.trackRuleExecutionHandler(
-          JSON.stringify(targetVal, null, 2),
-          _opts,
-          paths,
-          this.severity,
-          this.constructor.name,
-          moduleName,
-          Dok15Base.customProperties,
-        );
-      },
-    },
-  ];
-}
+const DOK03_DESCRIPTION =
+  'Dokumentationen för ett API SKALL innehålla följande: Om API, Användarvillkor, Datamodell för representation av resurser, Krav på autentisering, Livscykelhantering och versionshantering, Kontaktuppgifter.';
 
-export class Dok15ReqBody extends Dok15Base {
-  given = '$.paths[*][?(@ != "get")].requestBody.content.application/json';
-  then = [
-    {
-      function: (targetVal: any, _opts: string, paths: string[]) => {
-        return super.test(targetVal, _opts, paths);
-      },
-    },
-    {
-      function: (targetVal: string, _opts: string, paths: string[]) => {
-        this.trackRuleExecutionHandler(
-          JSON.stringify(targetVal, null, 2),
-          _opts,
-          paths,
-          this.severity,
-          this.constructor.name,
-          moduleName,
-          Dok15Base.customProperties,
-        );
-      },
-    },
-  ];
-}
+const DOK15_MESSAGE =
+  'I dokumentationen av API:et SKALL exempel på API:ets fråga (eng:request) och svar (eng:reply) finnas i sin helhet.';
 
-export class Dok17 extends BaseRuleset {
-  static customProperties: CustomProperties = {
-    område: 'Dokumentation',
-    id: 'DOK.17',
-  };
-  description =
-    ' ( Linter-analysverktyget (RAP-LP) för den nationella REST API-profilen är designat för senaste major versionen av OpenAPI Specification. Använd därför denna för full täckning av de implementerade reglerna. )';
-  message = 'API specifikation BÖR dokumenteras med den senaste versionen av OpenAPI Specification.' + this.description;
-  given = '$';
-  then = [
+export const Dok15Get = defineRule({
+  id: 'DOK.15',
+  area: AREA,
+  message: DOK15_MESSAGE,
+  severity: DiagnosticSeverity.Error,
+  given: '$.paths[*][*].responses[*].content.application/json',
+  validate: (targetVal) => {
+    if (!hasExampleInMediaType(targetVal)) {
+      return [{ message: DOK15_MESSAGE, severity: DiagnosticSeverity.Error }];
+    }
+    return [];
+  },
+});
+
+export const Dok15ReqBody = defineRule({
+  id: 'DOK.15',
+  area: AREA,
+  message: DOK15_MESSAGE,
+  severity: DiagnosticSeverity.Error,
+  given: '$.paths[*][?(@ != "get")].requestBody.content.application/json',
+  validate: (targetVal) => {
+    if (!hasExampleInMediaType(targetVal)) {
+      return [{ message: DOK15_MESSAGE, severity: DiagnosticSeverity.Error }];
+    }
+    return [];
+  },
+});
+
+const DOK17_DESCRIPTION =
+  ' ( Linter-analysverktyget (RAP-LP) för den nationella REST API-profilen är designat för senaste major versionen av OpenAPI Specification. Använd därför denna för full täckning av de implementerade reglerna. )';
+
+export const Dok17 = defineRule({
+  id: 'DOK.17',
+  area: AREA,
+  description: DOK17_DESCRIPTION,
+  message: 'API specifikation BÖR dokumenteras med den senaste versionen av OpenAPI Specification.' + DOK17_DESCRIPTION,
+  severity: DiagnosticSeverity.Warning,
+  formats: ['OAS2', 'OAS3'],
+  given: '$',
+  then: [
     {
       field: 'swagger',
       function: falsy,
@@ -86,327 +71,144 @@ export class Dok17 extends BaseRuleset {
       field: 'openapi',
       function: pattern,
       functionOptions: {
-        // Matcha pattern 3.x.y och major version större än 3
         match: '^(3|[4-9]|[1-9]\\d+)\\.\\d+\\.\\d+$',
       },
     },
-    {
-      function: (targetVal: string, _opts: string, paths: string[]) => {
-        this.trackRuleExecutionHandler(
-          JSON.stringify(targetVal, null, 2),
-          _opts,
-          paths,
-          this.severity,
-          this.constructor.name,
-          moduleName,
-          Dok17.customProperties,
-        );
-      },
-    },
-  ];
-  constructor(context: RuleExecutionContext) {
-    super(context);
-    super.initializeFormats(['OAS2', 'OAS3']);    
-  }
-  severity = DiagnosticSeverity.Warning;
-}
+  ],
+});
 
-export class Dok20 extends BaseRuleset {
-  static customProperties: CustomProperties = {
-    område: 'Dokumentation',
-    id: 'DOK.20',
-  };
-  given = '$.paths[*][*].responses[*]';
-  message = 'Förväntade returkoder och felkoder SKALL vara fullständigt dokumenterade.';
-  then = [
+export const Dok20 = defineRule({
+  id: 'DOK.20',
+  area: AREA,
+  message: 'Förväntade returkoder och felkoder SKALL vara fullständigt dokumenterade.',
+  severity: DiagnosticSeverity.Error,
+  given: '$.paths[*][*].responses[*]',
+  then: [
     {
       field: 'description',
       function: truthy,
     },
-    {
-      function: (targetVal: string, _opts: string, paths: string[]) => {
-        this.trackRuleExecutionHandler(
-          JSON.stringify(targetVal, null, 2),
-          _opts,
-          paths,
-          this.severity,
-          this.constructor.name,
-          moduleName,
-          Dok20.customProperties,
-        );
-      },
-    },
-  ];
-  constructor(context: RuleExecutionContext) {
-    super(context);
-    super.initializeFormats(['OAS3']);
-  }
-  severity = DiagnosticSeverity.Error;
-}
-export class Dok06 extends BaseRuleset {
-  static customProperties: CustomProperties = {
-    område: 'Dokumentation',
-    id: 'DOK.06',
-  };
-  given = '$.info.description';
-  message = 'Dokumentationen BÖR finnas på både svenska och engelska.';
-  then = [
-    {
-      function: (targetVal: string, _opts: string, paths: string[]) => {
-        const lowerCaseDescriptionList = targetVal.toLowerCase().match(/[a-zåäö]+/gi) || [];
+  ],
+});
 
-        const containsEnglish = lowerCaseDescriptionList.some((word) => commonEnglishWords.includes(word));
-        const containsSwedish = lowerCaseDescriptionList.some((word) => commonSwedishWords.includes(word));
+const DOK06_MESSAGE = 'Dokumentationen BÖR finnas på både svenska och engelska.';
 
-        if (!containsEnglish || !containsSwedish) {
-          return [
-            {
-              message: this.message,
-              severity: this.severity,
-              paths: paths,
-            },
-          ];
-        } else {
-          return [];
-        }
-      },
-    },
-    {
-      function: (targetVal: string, _opts: string, paths: string[]) => {
-        this.trackRuleExecutionHandler(
-          JSON.stringify(targetVal, null, 2),
-          _opts,
-          paths,
-          this.severity,
-          this.constructor.name,
-          moduleName,
-          Dok06.customProperties,
-        );
-      },
-    },
-  ];
-  constructor(context: RuleExecutionContext) {
-    super(context);
-    super.initializeFormats(['OAS3']);
-  }
-  severity = DiagnosticSeverity.Warning;
-}
-export class Dok07 extends BaseRuleset {
-  static customProperties: CustomProperties = {
-    område: 'Dokumentation',
-    id: 'DOK.07',
-  };
-  given = '$.info';
-  message = 'Dokumentationen av ett API BÖR innehålla övergripande information om API:et.';
-  then = [
+export const Dok06 = defineRule({
+  id: 'DOK.06',
+  area: AREA,
+  message: DOK06_MESSAGE,
+  severity: DiagnosticSeverity.Warning,
+  given: '$.info.description',
+  validate: (targetVal: string) => {
+    const words = String(targetVal ?? '').toLowerCase().match(/[a-zåäö]+/gi) || [];
+    const containsEnglish = words.some((word) => commonEnglishWords.includes(word));
+    const containsSwedish = words.some((word) => commonSwedishWords.includes(word));
+
+    if (!containsEnglish || !containsSwedish) {
+      return [{ message: DOK06_MESSAGE, severity: DiagnosticSeverity.Warning }];
+    }
+    return [];
+  },
+});
+
+export const Dok07 = defineRule({
+  id: 'DOK.07',
+  area: AREA,
+  message: 'Dokumentationen av ett API BÖR innehålla övergripande information om API:et.',
+  severity: DiagnosticSeverity.Warning,
+  given: '$.info',
+  then: [
     {
       field: 'description',
       function: truthy,
     },
-    {
-      function: (targetVal: string, _opts: string, paths: string[]) => {
-        this.trackRuleExecutionHandler(
-          JSON.stringify(targetVal, null, 2),
-          _opts,
-          paths,
-          this.severity,
-          this.constructor.name,
-          moduleName,
-          Dok07.customProperties,
-        );
-      },
-    },
-  ];
-  constructor(context: RuleExecutionContext) {
-    super(context);
-    super.initializeFormats(['OAS3']);
-  }
-  severity = DiagnosticSeverity.Warning;
-}
-export class Dok08 extends BaseRuleset {
-  static customProperties: CustomProperties = {
-    område: 'Dokumentation',
-    id: 'DOK.08',
-  };
-  given = '$';
-  message = 'Ett API:s servicenivå SKALL finnas tydligt beskriven i dokumentationen.';
-  then = [
-    {
-      function: (targetVal: any, _opts: string, paths: string[]) => {
-        const isValidUrl = (url: string): boolean => {
-          const urlPattern = new RegExp('^(https?:\\/\\/)?(www\\.)?([a-zA-Z0-9-]+\\.)+[a-zA-Z]{2,}(\\/\\S*)?$');
-          return urlPattern.test(url);
-        };
+  ],
+});
 
-        const hasValidSlaFields = (sla: any): boolean => {
-          return !!(sla?.availability && sla?.responseTime && sla?.support);
-        };
+const DOK08_MESSAGE = 'Ett API:s servicenivå SKALL finnas tydligt beskriven i dokumentationen.';
+const SLA_URL_PATTERN = /^(https?:\/\/)?(www\.)?([a-zA-Z0-9-]+\.)+[a-zA-Z]{2,}(\/\S*)?$/;
+const SLA_TERMS = ['service level agreement', 'sla'];
 
-        const includesSlaTerm = (description: string): boolean => {
-          const slaTerms = ['service level agreement', 'sla'];
-          return slaTerms.some((term) => description.includes(term));
-        };
+export const Dok08 = defineRule({
+  id: 'DOK.08',
+  area: AREA,
+  message: DOK08_MESSAGE,
+  severity: DiagnosticSeverity.Error,
+  given: '$',
+  validate: (targetVal: any) => {
+    if (targetVal?.info?.termsOfService) {
+      return [];
+    }
 
-        if (targetVal?.info?.termsOfService) {
-          return [];
-        }
+    const customSla = targetVal?.info?.['x-sla'];
+    if (customSla?.availability && customSla?.responseTime && customSla?.support) {
+      return [];
+    }
 
-        const customSlaField = targetVal?.info?.['x-sla'];
-        if (customSlaField && hasValidSlaFields(customSlaField)) {
-          return [];
-        }
+    const externalDocs = targetVal?.externalDocs;
+    if (
+      externalDocs?.description &&
+      externalDocs?.url &&
+      SLA_URL_PATTERN.test(externalDocs.url) &&
+      SLA_TERMS.some((term) => String(externalDocs.description).toLowerCase().includes(term))
+    ) {
+      return [];
+    }
 
-        const externalDocs = targetVal?.externalDocs;
-        if (
-          externalDocs?.description &&
-          externalDocs?.url &&
-          isValidUrl(externalDocs.url) &&
-          includesSlaTerm(externalDocs.description.toLowerCase())
-        ) {
-          return [];
-        }
+    return [{ message: DOK08_MESSAGE, severity: DiagnosticSeverity.Error }];
+  },
+});
 
-        return [
-          {
-            message: this.message,
-            severity: this.severity,
-            paths: paths,
-          },
-        ];
-      },
-    },
-    {
-      function: (targetVal: string, _opts: string, paths: string[]) => {
-        this.trackRuleExecutionHandler(
-          JSON.stringify(targetVal, null, 2),
-          _opts,
-          paths,
-          this.severity,
-          this.constructor.name,
-          moduleName,
-          Dok08.customProperties,
-        );
-      },
-    },
-  ];
-  constructor(context: RuleExecutionContext) {
-    super(context);
-    super.initializeFormats(['OAS3']);
-  }
-  severity = DiagnosticSeverity.Error;
-}
-export class Dok09 extends BaseRuleset {
-  static customProperties: CustomProperties = {
-    område: 'Dokumentation',
-    id: 'DOK.09',
-  };
-  given = '$';
-  message = 'Kända problem och begränsningar SKALL finnas tydlig beskrivna i dokumentationen.';
-  then = [
-    {
-      function: (targetVal: any, _opts: string, paths: string[]) => {
-        const includesLimitTerm = (description: string): boolean => {
-          if (description) {
-            const limitTerms = ['limit', 'begränsning', 'problem'];
-            return limitTerms.some((term) => description.includes(term));
-          } else {
-            return false;
-          }
-        };
+const DOK09_MESSAGE = 'Kända problem och begränsningar SKALL finnas tydlig beskrivna i dokumentationen.';
+const LIMIT_TERMS = ['limit', 'begränsning', 'problem'];
 
-        const externalDocs = targetVal?.externalDocs;
-        const info = targetVal?.info;
-        if (
-          info?.['x-limitations'] ||
-          includesLimitTerm(info?.description?.toLowerCase()) ||
-          includesLimitTerm(externalDocs?.description?.toLowerCase())
-        ) {
-          return [];
-        }
+export const Dok09 = defineRule({
+  id: 'DOK.09',
+  area: AREA,
+  message: DOK09_MESSAGE,
+  severity: DiagnosticSeverity.Error,
+  given: '$',
+  validate: (targetVal: any) => {
+    const includesLimitTerm = (description?: string): boolean =>
+      Boolean(description && LIMIT_TERMS.some((term) => description.toLowerCase().includes(term)));
 
-        return [
-          {
-            message: this.message,
-            severity: this.severity,
-            paths: paths,
-          },
-        ];
-      },
-    },
-    {
-      function: (targetVal: string, _opts: string, paths: string[]) => {
-        this.trackRuleExecutionHandler(
-          JSON.stringify(targetVal, null, 2),
-          _opts,
-          paths,
-          this.severity,
-          this.constructor.name,
-          moduleName,
-          Dok09.customProperties,
-        );
-      },
-    },
-  ];
-  constructor(context: RuleExecutionContext) {
-    super(context);
-    super.initializeFormats(['OAS3']);
-  }
-  severity = DiagnosticSeverity.Error;
-}
+    if (
+      targetVal?.info?.['x-limitations'] ||
+      includesLimitTerm(targetVal?.info?.description) ||
+      includesLimitTerm(targetVal?.externalDocs?.description)
+    ) {
+      return [];
+    }
 
-export class Dok11 extends BaseRuleset {
-  static customProperties: CustomProperties = {
-    område: 'Dokumentation',
-    id: 'DOK.11',
-  };
-  given = '$.info';
-  message = 'Avsikten och beteendet hos API:et SKALL beskrivas så utförligt och tydligt som möjligt.';
-  then = [
-    {
-      function: (targetVal: any, _opts: string, paths: string[]) => {
-        const description = targetVal.description;
-        if (!description || typeof description !== 'string' || description.trim() === '') {
-          return [
-            {
-              message: this.message,
-              severity: this.severity,
-              paths: paths,
-            },
-          ];
-        }
-        return [];
-      },
-    },
-    {
-      function: (targetVal: string, _opts: string, paths: string[]) => {
-        this.trackRuleExecutionHandler(
-          JSON.stringify(targetVal, null, 2),
-          _opts,
-          paths,
-          this.severity,
-          this.constructor.name,
-          moduleName,
-          Dok11.customProperties,
-        );
-      },
-    },
-  ];
-  constructor(context: RuleExecutionContext) {
-    super(context);
-    super.initializeFormats(['OAS3']);
-  }
-  severity = DiagnosticSeverity.Error;
-}
+    return [{ message: DOK09_MESSAGE, severity: DiagnosticSeverity.Error }];
+  },
+});
 
-export class Dok19 extends BaseRuleset {
-  static customProperties: CustomProperties = {
-    område: 'Dokumentation',
-    id: 'DOK.19',
-  };
-  given = '$.paths[*][*]';
-  message =
-    'Ett API:s resurser och de möjliga operationer som kan utföras på resursen SKALL beskrivas så utförligt och tydligt som möjligt';
-  then = [
+const DOK11_MESSAGE = 'Avsikten och beteendet hos API:et SKALL beskrivas så utförligt och tydligt som möjligt.';
+
+export const Dok11 = defineRule({
+  id: 'DOK.11',
+  area: AREA,
+  message: DOK11_MESSAGE,
+  severity: DiagnosticSeverity.Error,
+  given: '$.info',
+  validate: (targetVal: any) => {
+    const description = targetVal?.description;
+    if (!description || typeof description !== 'string' || description.trim() === '') {
+      return [{ message: DOK11_MESSAGE, severity: DiagnosticSeverity.Error }];
+    }
+    return [];
+  },
+});
+
+export const Dok19 = defineRule({
+  id: 'DOK.19',
+  area: AREA,
+  message:
+    'Ett API:s resurser och de möjliga operationer som kan utföras på resursen SKALL beskrivas så utförligt och tydligt som möjligt',
+  severity: DiagnosticSeverity.Error,
+  given: '$.paths[*][*]',
+  then: [
     {
       field: 'summary',
       function: truthy,
@@ -415,317 +217,161 @@ export class Dok19 extends BaseRuleset {
       field: 'description',
       function: truthy,
     },
-    {
-      function: (targetVal: string, _opts: string, paths: string[]) => {
-        this.trackRuleExecutionHandler(
-          JSON.stringify(targetVal, null, 2),
-          _opts,
-          paths,
-          this.severity,
-          this.constructor.name,
-          moduleName,
-          Dok19.customProperties,
-        );
-      },
-    },
-  ];
-  constructor(context: RuleExecutionContext) {
-    super(context);
-    super.initializeFormats(['OAS3']);
-  }
-  severity = DiagnosticSeverity.Error;
-}
-export class Dok21 extends BaseRuleset {
-  static customProperties: CustomProperties = {
-    område: 'Dokumentation',
-    id: 'DOK.21',
-  };
-  given = '$';
-  message = 'Krav på autentisering SKALL anges i specifikationen.';
-  then = [
-    {
-      function: (targetVal: OpenAPIObject, _opts: string, paths: string[]) => {
-        const rootSecurity: SecurityRequirementObject[] | undefined = targetVal.security;
+  ],
+});
 
-        if (rootSecurity) {
-          if (Array.isArray(rootSecurity)) {
-            return [];
-          }
-        }
+const DOK21_MESSAGE = 'Krav på autentisering SKALL anges i specifikationen.';
+const HTTP_OPERATION_KEYS = ['get', 'put', 'post', 'delete', 'options', 'head', 'patch', 'trace'];
 
-        const hasSecurityInAnyPath = (paths: PathsObject | undefined): boolean => {
-          if (!paths) return false;
-          return Object.values(paths).some((pathItem: PathItemObject | undefined) => {
-            if (!pathItem) return false;
+export const Dok21 = defineRule({
+  id: 'DOK.21',
+  area: AREA,
+  message: DOK21_MESSAGE,
+  severity: DiagnosticSeverity.Error,
+  given: '$',
+  validate: (targetVal: OpenAPIObject) => {
+    const rootSecurity: SecurityRequirementObject[] | undefined = targetVal?.security;
+    if (Array.isArray(rootSecurity)) {
+      return [];
+    }
 
-            return (Object.keys(pathItem) as (keyof PathItemObject)[])
-              .filter((k) => ['get', 'put', 'post', 'delete', 'options', 'head', 'patch', 'trace'].includes(k))
-              .some((k) => {
-                const op = pathItem[k] as OperationObject | undefined;
-                return op?.security;
-              });
-          });
-        };
+    const hasSecurityInAnyPath = (paths: PathsObject | undefined): boolean => {
+      if (!paths) return false;
+      return Object.values(paths).some((pathItem: PathItemObject | undefined) => {
+        if (!pathItem) return false;
+        return (Object.keys(pathItem) as (keyof PathItemObject)[])
+          .filter((k) => HTTP_OPERATION_KEYS.includes(String(k)))
+          .some((k) => Boolean((pathItem[k] as OperationObject | undefined)?.security));
+      });
+    };
 
-        if (hasSecurityInAnyPath(targetVal.paths)) {
-          return [];
-        }
+    if (hasSecurityInAnyPath(targetVal?.paths)) {
+      return [];
+    }
 
-        return [
-          {
-            message: this.message,
-            severity: this.severity,
-            paths: paths,
-          },
-        ];
-      },
-    },
-    {
-      function: (targetVal: string, _opts: string, paths: string[]) => {
-        this.trackRuleExecutionHandler(
-          JSON.stringify(targetVal, null, 2),
-          _opts,
-          paths,
-          this.severity,
-          this.constructor.name,
-          moduleName,
-          Dok21.customProperties,
-        );
-      },
-    },
-  ];
-  constructor(context: RuleExecutionContext) {
-    super(context);
-    super.initializeFormats(['OAS3']);
-  }
-  severity = DiagnosticSeverity.Error;
-}
-export class Dok01 extends BaseRuleset {
-  static customProperties: CustomProperties = {
-    område: 'Dokumentation',
-    id: 'DOK.01',
-  };
-  given = '$';
-  message = 'I regel BÖR dokumentationen och specifikationen för ett API finnas allmänt tillgänglig online';
-  then = [
-    {
-      function: (targetVal, _opts, paths) => {
-        let obj: any = [];
-        if (targetVal.hasOwnProperty('externalDocs')) {
-          this.trackRuleExecutionHandler(
-            JSON.stringify(targetVal, null, 2),
-            _opts,
-            paths,
-            this.severity,
-            this.constructor.name,
-            moduleName,
-            Dok01.customProperties,
-          );
+    return [{ message: DOK21_MESSAGE, severity: DiagnosticSeverity.Error }];
+  },
+});
 
-          obj = targetVal['externalDocs'];
-          if (obj === null) {
-            return [
-              {
-                path: ['externalDocs'],
-                message: this.message,
-                severity: this.severity,
-              },
-            ];
-          }
-          const hasValidDescription =
-            obj.hasOwnProperty('description') && obj.description != null && obj.description.toString().trim() !== '';
-          const hasValidUrl = obj.hasOwnProperty('url') && obj.url != null && obj.url.toString().trim() !== '';
-          if (!hasValidDescription || !hasValidUrl) {
-            return [
-              {
-                path: ['externalDocs'],
-                message: this.message,
-                severity: this.severity,
-              },
-            ];
-          }
-        }
-      },
-    },
-  ];
-  constructor(context: RuleExecutionContext) {
-    super(context);
-    super.initializeFormats(['OAS3']);
-  }
-  severity = DiagnosticSeverity.Warning;
-}
+const DOK01_MESSAGE = 'I regel BÖR dokumentationen och specifikationen för ett API finnas allmänt tillgänglig online';
 
-/**
- * Dok03Info
- */
-export class Dok03Info extends Dok03Base {
-  static customProperties: CustomProperties = {
-    område: 'Dokumentation',
-    id: 'DOK.03',
-  };
-  given = '$.info';
-  message =
-    this.description + '[ info objektet bör ha title, version , description, termsOfService, contact , license ]';
-  then = [
-    {
-      field: 'version',
-      function: truthy,
-    },
-    {
-      field: 'title',
-      function: truthy,
-    },
-    {
-      field: 'description',
-      function: truthy,
-    },
-    {
-      field: 'termsOfService',
-      function: truthy,
-    },
+export const Dok01 = defineRule({
+  id: 'DOK.01',
+  area: AREA,
+  message: DOK01_MESSAGE,
+  severity: DiagnosticSeverity.Warning,
+  given: '$',
+  trackWhen: (targetVal) => Boolean(targetVal && Object.prototype.hasOwnProperty.call(targetVal, 'externalDocs')),
+  validate: (targetVal: any) => {
+    if (!targetVal || !Object.prototype.hasOwnProperty.call(targetVal, 'externalDocs')) {
+      return [];
+    }
+    const obj = targetVal.externalDocs;
+    if (obj === null || typeof obj !== 'object') {
+      return [{ path: ['externalDocs'], message: DOK01_MESSAGE, severity: DiagnosticSeverity.Warning }];
+    }
+    const hasValidDescription =
+      Object.prototype.hasOwnProperty.call(obj, 'description') &&
+      obj.description != null &&
+      obj.description.toString().trim() !== '';
+    const hasValidUrl =
+      Object.prototype.hasOwnProperty.call(obj, 'url') && obj.url != null && obj.url.toString().trim() !== '';
+    if (!hasValidDescription || !hasValidUrl) {
+      return [{ path: ['externalDocs'], message: DOK01_MESSAGE, severity: DiagnosticSeverity.Warning }];
+    }
+    return [];
+  },
+});
 
-    {
-      function: (targetVal, _opts, paths) => {
-        this.trackRuleExecutionHandler(
-          JSON.stringify(targetVal, null, 2),
-          _opts,
-          paths,
-          this.severity,
-          this.constructor.name,
-          moduleName,
-          Dok03Info.customProperties,
-        );
-      },
-    },
-  ];
-}
+export const Dok03Info = defineRule({
+  id: 'DOK.03',
+  area: AREA,
+  description: DOK03_DESCRIPTION,
+  message:
+    DOK03_DESCRIPTION + '[ info objektet bör ha title, version , description, termsOfService, contact , license ]',
+  severity: DiagnosticSeverity.Error,
+  given: '$.info',
+  then: [
+    { field: 'version', function: truthy },
+    { field: 'title', function: truthy },
+    { field: 'description', function: truthy },
+    { field: 'termsOfService', function: truthy },
+  ],
+});
 
-export class Dok03ContactName extends Dok03Base {
-  static customProperties: CustomProperties = {
-    område: 'Dokumentation',
-    id: 'DOK.03',
-  };
-  message = this.description + '(Contact saknar name)';
-  given = '$.info.contact';
+export const Dok03ContactName = defineRule({
+  id: 'DOK.03',
+  area: AREA,
+  description: DOK03_DESCRIPTION,
+  message: DOK03_DESCRIPTION + '(Contact saknar name)',
+  severity: DiagnosticSeverity.Error,
+  given: '$.info.contact',
+  trackWhen: () => false,
+  then: [{ field: 'name', function: truthy }],
+});
 
-  then = [
-    {
-      field: 'name',
-      function: truthy,
-    },
-  ];
-}
+export const Dok03ContactEmail = defineRule({
+  id: 'DOK.03',
+  area: AREA,
+  description: DOK03_DESCRIPTION,
+  message: DOK03_DESCRIPTION + '(Contact saknar email)',
+  severity: DiagnosticSeverity.Error,
+  given: '$.info.contact',
+  trackWhen: () => false,
+  then: [{ field: 'email', function: truthy }],
+});
 
-export class Dok03ContactEmail extends Dok03Base {
-  static customProperties: CustomProperties = {
-    område: 'Dokumentation',
-    id: 'DOK.03',
-  };
-  message = this.description + '(Contact saknar email)';
-  given = '$.info.contact';
+export const Dok03ContactUrl = defineRule({
+  id: 'DOK.03',
+  area: AREA,
+  description: DOK03_DESCRIPTION,
+  message: DOK03_DESCRIPTION + '(Contact saknar url)',
+  severity: DiagnosticSeverity.Error,
+  given: '$.info.contact',
+  trackWhen: () => false,
+  then: [{ field: 'url', function: truthy }],
+});
 
-  then = [
-    {
-      field: 'email',
-      function: truthy,
-    },
-  ];
-}
+export const Dok03Contact = defineRule({
+  id: 'DOK.03',
+  area: AREA,
+  description: DOK03_DESCRIPTION,
+  message: DOK03_DESCRIPTION + '(Saknar contact objektet)',
+  severity: DiagnosticSeverity.Error,
+  given: '$.info',
+  trackWhen: () => false,
+  then: [{ field: 'contact', function: truthy }],
+});
 
-export class Dok03ContactUrl extends Dok03Base {
-  static customProperties: CustomProperties = {
-    område: 'Dokumentation',
-    id: 'DOK.03',
-  };
-  message = this.description + '(Contact saknar url)';
-  given = '$.info.contact';
+export const Dok03License = defineRule({
+  id: 'DOK.03',
+  area: AREA,
+  description: DOK03_DESCRIPTION,
+  message: DOK03_DESCRIPTION + '(Saknar license objektet)',
+  severity: DiagnosticSeverity.Error,
+  given: '$.info',
+  trackWhen: () => false,
+  then: [{ field: 'license', function: truthy }],
+});
 
-  then = [
-    {
-      field: 'url',
-      function: truthy,
-    },
-  ];
-}
+export const Dok03LicenseUrl = defineRule({
+  id: 'DOK.03',
+  area: AREA,
+  description: DOK03_DESCRIPTION,
+  message: DOK03_DESCRIPTION + '(license saknar url)',
+  severity: DiagnosticSeverity.Error,
+  given: '$.info.license',
+  trackWhen: () => false,
+  then: [{ field: 'url', function: truthy }],
+});
 
-export class Dok03Contact extends Dok03Base {
-  static customProperties: CustomProperties = {
-    område: 'Dokumentation',
-    id: 'DOK.03',
-  };
-  message = this.description + '(Saknar contact objektet)';
-  given = '$.info';
-
-  then = [
-    {
-      field: 'contact',
-      function: truthy,
-    },
-  ];
-}
-
-export class Dok03License extends Dok03Base {
-  static customProperties: CustomProperties = {
-    område: 'Dokumentation',
-    id: 'DOK.03',
-  };
-  message = this.description + '(Saknar license objektet)';
-  given = '$.info';
-
-  then = [
-    {
-      field: 'license',
-      function: truthy,
-    },
-  ];
-}
-
-export class Dok03LicenseUrl extends Dok03Base {
-  static customProperties: CustomProperties = {
-    område: 'Dokumentation',
-    id: 'DOK.03',
-  };
-  message = this.description + '(license saknar url)';
-  given = '$.info.license';
-
-  then = [
-    {
-      field: 'url',
-      function: truthy,
-    },
-  ];
-}
-
-export class Dok03LicenseName extends Dok03Base {
-  static customProperties: CustomProperties = {
-    område: 'Dokumentation',
-    id: 'DOK.03',
-  };
-  message = this.description + '(license saknar name)';
-  given = '$.info.license';
-
-  then = [
-    {
-      field: 'name',
-      function: truthy,
-    },
-  ];
-}
-
-export default {
-  Dok20,
-  Dok19,
-  Dok07,
-  Dok01,
-  Dok17,
-  Dok15Get,
-  Dok15ReqBody,
-  Dok03Info,
-  Dok03Contact,
-  Dok03License,
-  Dok03ContactEmail,
-  Dok03ContactName,
-  Dok03ContactUrl,
-  Dok03LicenseUrl,
-  Dok03LicenseName,
-};
+export const Dok03LicenseName = defineRule({
+  id: 'DOK.03',
+  area: AREA,
+  description: DOK03_DESCRIPTION,
+  message: DOK03_DESCRIPTION + '(license saknar name)',
+  severity: DiagnosticSeverity.Error,
+  given: '$.info.license',
+  trackWhen: () => false,
+  then: [{ field: 'name', function: truthy }],
+});

@@ -5,118 +5,95 @@
 import { RuleCategoryError } from './RapLPBaseApiErrorHandling.js';
 import { RuleExecutionContext } from './RuleExecutionContext.js';
 import { RuleModuleName } from '../rulesets/util/ruleModules.js';
+import { cloneRuleWithTracking, RapLPRule } from '../rulesets/defineRule.js';
+import * as UfnRules from '../rulesets/UfnRules.js';
+import * as SakRules from '../rulesets/SakRules.js';
+import * as SpaRules from '../rulesets/SpaRules.js';
+import * as VerRules from '../rulesets/VerRules.js';
+import * as FnsRules from '../rulesets/FnsRules.js';
+import * as ArqRules from '../rulesets/ArqRules.js';
+import * as DokRules from '../rulesets/DokRules.js';
+import * as AmeRules from '../rulesets/AmeRules.js';
+import * as ForRules from '../rulesets/ForRules.js';
+import * as DotRules from '../rulesets/DotRules.js';
+import * as FelRules from '../rulesets/FelRules.js';
+import * as ResRules from '../rulesets/ResRules.js';
+import * as MogRules from '../rulesets/MogRules.js';
 
-/**
- *  Add other rule modules when applying new rules to RAP-LP
- *  Modules are loaded as default ones when no explicit category is choosed from the command line
- */
-const ruleModules = [
-  'UfnRules',
-  'SakRules',
-  'SpaRules',
-  'VerRules',
-  'FnsRules',
-  'ArqRules',
-  'DokRules',
-  'AmeRules',
-  'ForRules',
-  'DotRules',
-  'FelRules',
-  'ResRules',
-  'MogRules',
-];
-/**
- *
- * @param ruleCategories
- * @returns
- */
-export function getRuleModules() {
+const STATIC_RULE_MODULES: Record<string, Record<string, unknown>> = {
+  UfnRules,
+  SakRules,
+  SpaRules,
+  VerRules,
+  FnsRules,
+  ArqRules,
+  DokRules,
+  AmeRules,
+  ForRules,
+  DotRules,
+  FelRules,
+  ResRules,
+  MogRules,
+};
+
+const ruleModules = Object.keys(STATIC_RULE_MODULES);
+
+export function getRuleModules(): string[] {
   return ruleModules;
 }
+
+function isRapLPRule(value: unknown): value is RapLPRule {
+  return Boolean(value && typeof value === 'object' && (value as RapLPRule).isRapLPRule === true);
+}
+
+function bindRuleToContext(
+  rule: RapLPRule,
+  ruleName: string,
+  moduleName: string,
+  context: RuleExecutionContext,
+): RapLPRule {
+  return cloneRuleWithTracking(rule, {
+    function: (targetVal: any, opts: any, paths: any) => {
+      if (!rule.trackWhen || rule.trackWhen(targetVal, opts, paths)) {
+        context.logRuleExecution(moduleName, ruleName, rule.customProperties, String(rule.severity), true);
+      }
+      return [];
+    },
+  });
+}
+
 /**
- *
- * @param ruleCategories Defined category (optional)
- * @returns Promise object with enabled rules in RAP-LP to run
+ * Resolves and binds declarative rules for the requested categories to a per-run RuleExecutionContext.
  */
 export async function importAndCreateRuleInstances(
   context: RuleExecutionContext,
   ruleCategories: RuleModuleName[],
-): Promise<{ rules: Record<string, any>; instanceCategoryMap: Map<string, any> }> {
-  const ruleInstances: Record<string, any> = {}; // store instances of rule classes
-  const ruleTypes: any[] = []; // array to store rule classes.
-  const instanceCategoryMap: Map<string, any> = new Map();
+): Promise<{ rules: Record<string, RapLPRule>; instanceCategoryMap: Map<string, RapLPRule> }> {
+  const ruleInstances: Record<string, RapLPRule> = {};
+  const instanceCategoryMap: Map<string, RapLPRule> = new Map();
 
-  /**
-   *
-   * @param category Defined category as an parameter
-   * @returns Promise - resolve to exported content of the specified module.
-   */
-  async function importRuleModule(category: string): Promise<any> {
-    try {
-      // import the module based on the provided category
-      const ruleModule = await import(`../rulesets/${category}.js`);
-      //Extract values (exports) from imported ruleModule in RAP-LP
-      const values = Object.values(ruleModule);
-      if (values.length > 0) {
-        return values as any;
-      } else {
-        //No exports from loaded ruleModule is found for the category
-        throw new Error(`inga exporterade typer hittade i modulen för kategori ${category}`);
-      }
-    } catch (error: any) {
-      //Saftey check in case of error when loading module[s]
-      throw new Error(`Fel vid importering av regler för kategori ${category}:, category ${error.message}`);
-    }
-  }
-  /**
-   *
-   * @param categories Defined categoeries to be loaded
-   */
-  async function importRulesByCategory(categories: string[]) {
-    for (const category of categories) {
-      const ruleClasses = await importRuleModule(category);
-      if (ruleClasses) {
-        for (const ruleClass of ruleClasses) {
-          if (ruleClass instanceof Function) {
-            // Check to see if has constructor function
-            ruleTypes.push(ruleClass); // Push the imported ruleClass in RAP-LP to array of ruleTypes
-            //Store ruletype for each instance
-          }
-        }
-      }
-    }
-  }
-  async function importAllRules() {
-    await importRulesByCategory(ruleModules);
-  }
-  /**
-   * Load modules
-   */
-  try {
-    if (ruleCategories && ruleCategories.length > 0) {
-      await importRulesByCategory(ruleCategories);
-    } else {
-      await importAllRules();
-    }
-  } catch (e) {
-    if (e instanceof Error) {
-      throw new RuleCategoryError(e.message);
-    }
-    throw e;
-  }
-  /**
-   * Loop entries of instanceCategory map
-   */
+  const categoriesToLoad: string[] = ruleCategories && ruleCategories.length > 0 ? ruleCategories : ruleModules;
 
-  // Create instances of rule classes in RAP-LP
-  ruleTypes.forEach((RuleClass) => {
-    try {
-      const instance = new RuleClass(context);
-      ruleInstances[RuleClass.name] = instance;
-      instanceCategoryMap.set(RuleClass.name, RuleClass); // Do we have name of ruleClass ?
-    } catch (error: any) {
-      console.error('Fel vid skapande av instans för regelklass %s:', RuleClass.name, error.message);
+  for (const category of categoriesToLoad) {
+    const ruleModule = STATIC_RULE_MODULES[category];
+    if (!ruleModule) {
+      throw new RuleCategoryError(`Fel vid importering av regler för kategori ${category}: okänd modul`);
     }
-  });
+
+    const entries = Object.entries(ruleModule).filter(
+      ([exportName, val]) => exportName !== 'default' && isRapLPRule(val),
+    );
+    if (entries.length === 0) {
+      throw new RuleCategoryError(`inga exporterade typer hittade i modulen för kategori ${category}`);
+    }
+
+    const moduleFileName = `${category}.js`;
+    for (const [ruleName, rawRule] of entries) {
+      const rule = rawRule as RapLPRule;
+      ruleInstances[ruleName] = bindRuleToContext(rule, ruleName, moduleFileName, context);
+      instanceCategoryMap.set(ruleName, rule);
+    }
+  }
+
   return { rules: ruleInstances, instanceCategoryMap };
 }

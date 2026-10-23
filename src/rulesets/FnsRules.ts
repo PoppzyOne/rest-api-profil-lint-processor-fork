@@ -2,359 +2,163 @@
 //
 // SPDX-License-Identifier: EUPL-1.2
 
-import { enumeration, truthy, falsy, undefined as undefinedFunc, pattern, schema } from '@stoplight/spectral-functions';
+import { pattern } from '@stoplight/spectral-functions';
 import { DiagnosticSeverity } from '@stoplight/types';
-import { CustomProperties } from '../ruleinterface/CustomProperties.js';
-import { BaseRuleset } from './BaseRuleset.js';
-import { RuleExecutionContext } from '../util/RuleExecutionContext.js';
+import { defineRule } from './defineRule.js';
 
-const moduleName: string = 'FnsRules.js';
+const AREA = 'Filtrering, paginering och sökparametrar';
 
-export class Fns01 extends BaseRuleset {
-  static customProperties: CustomProperties = {
-    område: 'Filtrering, paginering och sökparametrar',
-    id: 'FNS.01',
-  };
-  description =
-    'Parameternamn SKALL anges med en konsekvent namnkonvention inom ett API, exempelvis antingen snake_case eller camelCase';
-  message =
-    'Parameternamn SKALL anges med en konsekvent namnkonvention inom ett API, exempelvis antingen snake_case eller camelCase';
-  given = "$.paths.*.*.parameters[?(@.in=='query')].name";
-  then = [
+function hasPaginationQueryParam(targetVal: any): boolean {
+  return (
+    Array.isArray(targetVal) &&
+    targetVal.some((item) => item?.in === 'query' && (item?.name === 'page' || item?.name === 'offset'))
+  );
+}
+
+export const Fns01 = defineRule({
+  id: 'FNS.01',
+  area: AREA,
+  description:
+    'Parameternamn SKALL anges med en konsekvent namnkonvention inom ett API, exempelvis antingen snake_case eller camelCase',
+  message:
+    'Parameternamn SKALL anges med en konsekvent namnkonvention inom ett API, exempelvis antingen snake_case eller camelCase',
+  severity: DiagnosticSeverity.Error,
+  given: "$.paths.*.*.parameters[?(@.in=='query')].name",
+  then: [
     {
       function: pattern,
       functionOptions: {
         match: '^(?:[a-z0-9]+(?:_[a-z0-9]+)*|[a-z]+(?:[A-Z][a-z]*)*)$',
       },
     },
-    {
-      function: (targetVal: string, _opts: string, paths: string[]) => {
-        this.trackRuleExecutionHandler(
-          JSON.stringify(targetVal, null, 2),
-          _opts,
-          paths,
-          this.severity,
-          this.constructor.name,
-          moduleName,
-          Fns01.customProperties,
-        );
-      },
-    },
-  ];
-  constructor(context: RuleExecutionContext) {
-    super(context);
-    super.initializeFormats(['OAS3']);
-  }
-  severity = DiagnosticSeverity.Error;
-}
+  ],
+});
 
-export class Fns03 extends BaseRuleset {
-  static customProperties: CustomProperties = {
-    område: 'Filtrering, paginering och sökparametrar',
-    id: 'FNS.03',
-  };
-  description = 'Sökparametrar SKALL starta med en bokstav';
-  message = 'Sökparametrar SKALL starta med en bokstav.';
-  given = "$.paths.*.*.parameters[?(@.in=='query')].name";
-  then = [
+export const Fns03 = defineRule({
+  id: 'FNS.03',
+  area: AREA,
+  description: 'Sökparametrar SKALL starta med en bokstav',
+  message: 'Sökparametrar SKALL starta med en bokstav.',
+  severity: DiagnosticSeverity.Error,
+  given: "$.paths.*.*.parameters[?(@.in=='query')].name",
+  then: [
     {
       function: pattern,
       functionOptions: {
         match: '^[a-zA-Z].*$',
       },
     },
-    {
-      function: (targetVal: string, _opts: string, paths: string[]) => {
-        this.trackRuleExecutionHandler(
-          JSON.stringify(targetVal, null, 2),
-          _opts,
-          paths,
-          this.severity,
-          this.constructor.name,
-          moduleName,
-          Fns03.customProperties,
-        );
-      },
-    },
-  ];
-  constructor(context: RuleExecutionContext) {
-    super(context);
-    super.initializeFormats(['OAS3']);
-  }
-  severity = DiagnosticSeverity.Error;
-}
+  ],
+});
 
-export class Fns09 extends BaseRuleset {
-  static customProperties: CustomProperties = {
-    område: 'Filtrering, paginering och sökparametrar',
-    id: 'FNS.09',
-  };
-  description = 'Defaultvärde för limit BÖR vara 20';
-  message = 'Defaultvärde för limit BÖR vara 20';
-  given = '$.paths..parameters';
-  severity = DiagnosticSeverity.Warning;
-  then = [
-    {
-      function: (targetVal: any, _opts: string, paths: string[]) => {
-        let isValid = true;
-        let hasChecked = false;
+const FNS09_MESSAGE = 'Defaultvärde för limit BÖR vara 20';
 
-        if (Array.isArray(targetVal)) {
-          targetVal.forEach((item) => {
-            if (item['in'] == 'query' && (item['name'] == 'page' || item['name'] == 'offset')) {
-              // check for existense of 'limit' parameter
-              const limit = targetVal.find((param) => param.name === 'limit');
-              if (limit) {
-                isValid = limit.schema.default === 20;
-              }
-              /**
-               * Track ruleexecution
-               */
-              if (!hasChecked) {
-                this.trackRuleExecutionHandler(
-                  JSON.stringify(targetVal, null, 2),
-                  _opts,
-                  paths,
-                  this.severity,
-                  this.constructor.name,
-                  moduleName,
-                  Fns09.customProperties,
-                );
-                hasChecked = true;
-              }
-            }
-          });
-        }
-        if (!isValid) {
-          return [
-            {
-              message: this.message,
-              severity: this.severity,
-            },
-          ];
-        } else {
-          return [];
-        }
-      },
-    },
-  ];
-  constructor(context: RuleExecutionContext) {
-    super(context);
-    super.initializeFormats(['OAS3']);
-  }
-}
-export class Fns05 extends BaseRuleset {
-  static customProperties: CustomProperties = {
-    område: 'Filtrering, paginering och sökparametrar',
-    id: 'FNS.05',
-  };
-  description = 'Sökparametrar BÖR vara frivilliga.';
-  message = 'Sökparametrar BÖR vara frivilliga.';
-  given = "$.paths.[*].parameters[?(@.in=='query')].required";
+export const Fns09 = defineRule({
+  id: 'FNS.09',
+  area: AREA,
+  description: FNS09_MESSAGE,
+  message: FNS09_MESSAGE,
+  severity: DiagnosticSeverity.Warning,
+  given: '$.paths..parameters',
+  trackWhen: hasPaginationQueryParam,
+  validate: (targetVal: any) => {
+    if (!Array.isArray(targetVal) || !hasPaginationQueryParam(targetVal)) {
+      return [];
+    }
+    const limit = targetVal.find((param) => param?.name === 'limit');
+    if (limit && limit.schema?.default !== 20) {
+      return [{ message: FNS09_MESSAGE, severity: DiagnosticSeverity.Warning }];
+    }
+    return [];
+  },
+});
 
-  then = [
-    {
-      function: (targetVal) => {
-        return false === targetVal
-          ? []
-          : [
-              {
-                message: this.message,
-                severity: this.severity,
-              },
-            ];
-      },
-    },
-    {
-      function: (targetVal: string, _opts: string, paths: string[]) => {
-        this.trackRuleExecutionHandler(
-          JSON.stringify(targetVal, null, 2),
-          _opts,
-          paths,
-          this.severity,
-          this.constructor.name,
-          moduleName,
-          Fns05.customProperties,
-        );
-      },
-    },
-  ];
-  constructor(context: RuleExecutionContext) {
-    super(context);
-    super.initializeFormats(['OAS3']);
-  }
-  severity = DiagnosticSeverity.Warning;
-}
-export class Fns06 extends BaseRuleset {
-  static customProperties: CustomProperties = {
-    område: 'Filtrering, paginering och sökparametrar',
-    id: 'FNS.06',
-  };
-  description =
-    "Sökparametrar BÖR använda tecken som är URL-säkra (tecknen A-Z, a-z, 0-9, '-'', '.', '_' samt '~', se vidare i RFC 3986)";
-  message =
-    "Sökparametrar BÖR använda tecken som är URL-säkra (tecknen A-Z, a-z, 0-9, '-', '.', '_' samt '~', se vidare i RFC 3986)";
-  given = "$.paths.[*].parameters[?(@.in=='query')].name";
-  then = [
+const FNS05_MESSAGE = 'Sökparametrar BÖR vara frivilliga.';
+
+export const Fns05 = defineRule({
+  id: 'FNS.05',
+  area: AREA,
+  description: FNS05_MESSAGE,
+  message: FNS05_MESSAGE,
+  severity: DiagnosticSeverity.Warning,
+  given: "$.paths.[*].parameters[?(@.in=='query')].required",
+  validate: (targetVal: any) => {
+    return targetVal === false ? [] : [{ message: FNS05_MESSAGE, severity: DiagnosticSeverity.Warning }];
+  },
+});
+
+export const Fns06 = defineRule({
+  id: 'FNS.06',
+  area: AREA,
+  description:
+    "Sökparametrar BÖR använda tecken som är URL-säkra (tecknen A-Z, a-z, 0-9, '-'', '.', '_' samt '~', se vidare i RFC 3986)",
+  message:
+    "Sökparametrar BÖR använda tecken som är URL-säkra (tecknen A-Z, a-z, 0-9, '-', '.', '_' samt '~', se vidare i RFC 3986)",
+  severity: DiagnosticSeverity.Warning,
+  given: "$.paths.[*].parameters[?(@.in=='query')].name",
+  then: [
     {
       function: pattern,
       functionOptions: {
         match: '^(?:[a-zA-Z0-9-._~])+$',
       },
     },
-    {
-      function: (targetVal: string, _opts: string, paths: string[]) => {
-        this.trackRuleExecutionHandler(
-          JSON.stringify(targetVal, null, 2),
-          _opts,
-          paths,
-          this.severity,
-          this.constructor.name,
-          moduleName,
-          Fns06.customProperties,
-        );
-      },
-    },
-  ];
-  constructor(context: RuleExecutionContext) {
-    super(context);
-    super.initializeFormats(['OAS3']);
-  }
-  severity = DiagnosticSeverity.Warning;
+  ],
+});
+
+const FNS07_MESSAGE =
+  "Vid användande av paginering, SKALL följande parametrar ingå i request: 'limit' och någon av 'page' eller 'offset'";
+
+export const Fns07 = defineRule({
+  id: 'FNS.07',
+  area: AREA,
+  message: FNS07_MESSAGE,
+  severity: DiagnosticSeverity.Error,
+  given: '$.paths..parameters',
+  trackWhen: hasPaginationQueryParam,
+  validate: (targetVal: any) => {
+    if (!Array.isArray(targetVal) || !hasPaginationQueryParam(targetVal)) {
+      return [];
+    }
+    const hasLimit = targetVal.some((p) => p?.in === 'query' && p?.name === 'limit');
+    if (!hasLimit) {
+      return [{ message: FNS07_MESSAGE, severity: DiagnosticSeverity.Error }];
+    }
+    return [];
+  },
+});
+
+const FNS08_MESSAGE = "'page' SKALL alltid starta med värde 1";
+
+function hasPageAndLimitQueryParams(targetVal: any): boolean {
+  if (!Array.isArray(targetVal)) return false;
+  const hasPage = targetVal.some((p) => p?.in === 'query' && p?.name === 'page');
+  const hasLimit = targetVal.some((p) => p?.in === 'query' && p?.name === 'limit');
+  return hasPage && hasLimit;
 }
 
-export class Fns07 extends BaseRuleset {
-  static customProperties: CustomProperties = {
-    område: 'Filtrering, paginering och sökparametrar',
-    id: 'FNS.07',
-  };
-  description = '';
-  message =
-    "Vid användande av paginering, SKALL följande parametrar ingå i request: 'limit' och någon av 'page' eller 'offset'";
-  given = '$.paths..parameters';
-  then = [
-    {
-      function: (targetVal: any, _opts: string, paths: string[]) => {
-        let isValid = true;
-        let hasLimit = false;
-        let hasPage = false;
-        let hasOffset = false;
-
-        if (Array.isArray(targetVal)) {
-          targetVal.forEach(function (parameter, index) {
-            if (parameter['in'] == 'query') {
-              if (parameter['name'] == 'page') {
-                hasPage = true;
-              }
-              if (parameter['name'] == 'offset') {
-                hasOffset = true;
-              }
-              if (parameter['name'] == 'limit') {
-                hasLimit = true;
-              }
-            }
-          });
-          if (hasPage || hasOffset) {
-            this.trackRuleExecutionHandler(
-              JSON.stringify(targetVal, null, 2),
-              _opts,
-              paths,
-              this.severity,
-              this.constructor.name,
-              moduleName,
-              Fns07.customProperties,
-            );
-          }
-
-          if ((hasPage || hasOffset) && !hasLimit) {
-            isValid = false;
-          }
-        }
-        if (isValid) {
-          return [];
-        } else {
-          return [
-            {
-              message: this.message,
-              severity: this.severity,
-            },
-          ];
-        }
-      },
-    },
-  ];
-  constructor(context: RuleExecutionContext) {
-    super(context);
-    super.initializeFormats(['OAS3']);
-  }
-  severity = DiagnosticSeverity.Error;
-}
-
-export class Fns08 extends BaseRuleset {
-  static customProperties: CustomProperties = {
-    område: 'Filtrering, paginering och sökparametrar',
-    id: 'FNS.08',
-  };
-  description = '';
-  message = "'page' SKALL alltid starta med värde 1";
-  given = '$.paths..parameters';
-  then = [
-    {
-      function: (targetVal: any, _opts: string, paths: string[]) => {
-        let isValidDefaultValue = true;
-        let pageDefaultValue = -1;
-
-        let hasLimit = false;
-        let hasPage = false;
-
-        if (Array.isArray(targetVal)) {
-          targetVal.forEach(function (parameter, index) {
-            if (parameter['in'] == 'query') {
-              if (parameter['name'] == 'page') {
-                hasPage = true;
-                pageDefaultValue = parameter.hasOwnProperty('schema')
-                  ? parameter['schema']['default']
-                  : pageDefaultValue;
-              }
-              if (parameter['name'] == 'limit') {
-                hasLimit = true;
-              }
-            }
-          });
-          if (hasPage && hasLimit) {
-            /**
-             * Track ruleexecution
-             */
-            this.trackRuleExecutionHandler(
-              JSON.stringify(targetVal, null, 2),
-              _opts,
-              paths,
-              this.severity,
-              this.constructor.name,
-              moduleName,
-              Fns08.customProperties,
-            );
-            isValidDefaultValue = pageDefaultValue == 1;
-          }
-        }
-        if (isValidDefaultValue) {
-          return [];
-        } else {
-          return [
-            {
-              message: this.message,
-              severity: this.severity,
-            },
-          ];
-        }
-      },
-    },
-  ];
-  constructor(context: RuleExecutionContext) {
-    super(context);
-    super.initializeFormats(['OAS3']);
-  }
-  severity = DiagnosticSeverity.Error;
-}
-
-export default { Fns01, Fns03, Fns05, Fns06, Fns07, Fns08, Fns09 };
+export const Fns08 = defineRule({
+  id: 'FNS.08',
+  area: AREA,
+  message: FNS08_MESSAGE,
+  severity: DiagnosticSeverity.Error,
+  given: '$.paths..parameters',
+  trackWhen: hasPageAndLimitQueryParams,
+  validate: (targetVal: any) => {
+    if (!hasPageAndLimitQueryParams(targetVal)) {
+      return [];
+    }
+    let pageDefaultValue = -1;
+    for (const parameter of targetVal) {
+      if (parameter?.in === 'query' && parameter?.name === 'page') {
+        pageDefaultValue = Object.prototype.hasOwnProperty.call(parameter, 'schema')
+          ? parameter.schema?.default
+          : pageDefaultValue;
+      }
+    }
+    if (pageDefaultValue !== 1) {
+      return [{ message: FNS08_MESSAGE, severity: DiagnosticSeverity.Error }];
+    }
+    return [];
+  },
+});
